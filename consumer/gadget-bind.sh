@@ -13,8 +13,8 @@ echo 0x0200 > $G/bcdUSB
 
 mkdir -p $G/strings/0x409
 echo "1234567890" > $G/strings/0x409/serialnumber
-echo "Pi Zero 2 W" > $G/strings/0x409/manufacturer
-echo "USB Keyboard" > $G/strings/0x409/product
+echo "gspr.dev" > $G/strings/0x409/manufacturer
+echo "Voice Keyboard" > $G/strings/0x409/product
 
 mkdir -p $G/configs/c.1/strings/0x409
 echo "Config 1" > $G/configs/c.1/strings/0x409/configuration
