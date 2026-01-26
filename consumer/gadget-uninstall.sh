@@ -1,7 +1,23 @@
 #!/bin/sh
-set -e
+set -euo pipefail
 
 G=/sys/kernel/config/usb_gadget/kbd
+
+PREFIX="/usr"
+SBIN_DIR="$PREFIX/sbin"
+SYSTEMD_DIR="/etc/systemd/system"
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+
+rm -f "$SBIN_DIR/kb-serve"
+rm -f "$SBIN_DIR/gadget-bind"
+rm -f "$SBIN_DIR/gadget-unbind"
+rm -f "$SBIN_DIR/gadget-uninstall"
+rm -f "$SBIN_DIR/type-ascii"
+rm -f "$SYSTEMD_DIR/kb-serve.service"
+rm -f "$SYSTEMD_DIR/ptt.service"
+
+systemctl daemon-reload
 
 if [ ! -d "$G" ]; then
   echo "Gadget not found at $G"
@@ -10,24 +26,24 @@ fi
 
 # Unbind from UDC if bound
 if [ -e "$G/UDC" ]; then
-  echo "" | sudo tee $G/UDC >/dev/null
+  echo "" | tee $G/UDC >/dev/null
 fi
 
 # Remove function symlinks from configs
-sudo find $G/configs -type l -delete 2>/dev/null || true
+find $G/configs -type l -delete 2>/dev/null || true
 
 # Remove HID function
-sudo rm -rf $G/functions/hid.usb0 2>/dev/null || true
+rm -rf $G/functions/hid.usb0 2>/dev/null || true
 
 # Remove config strings and config
-sudo rm -rf $G/configs/c.1/strings/0x409 2>/dev/null || true
-sudo rm -rf $G/configs/c.1 2>/dev/null || true
+rm -rf $G/configs/c.1/strings/0x409 2>/dev/null || true
+rm -rf $G/configs/c.1 2>/dev/null || true
 
 # Remove device strings
-sudo rm -rf $G/strings/0x409 2>/dev/null || true
+rm -rf $G/strings/0x409 2>/dev/null || true
 
 # Finally remove the gadget directory
-sudo rmdir $G 2>/dev/null || sudo rm -rf $G 2>/dev/null || true
+rmdir $G 2>/dev/null || sudo rm -rf $G 2>/dev/null || true
 
 # Try to unload libcomposite if unused
-sudo modprobe -r libcomposite 2>/dev/null || true 
+modprobe -r libcomposite 2>/dev/null || true
