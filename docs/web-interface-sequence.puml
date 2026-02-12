@@ -1,0 +1,43 @@
+@startuml Web Interface Sequence Diagram
+
+actor User
+participant "Mobile Browser" as Browser
+participant "Pi Web Server\n(Go HTTP)" as PiServer
+participant "GPU Transcription\nService\n(via SSH tunnel)" as GPUService
+participant "Pi HID Driver\n(/dev/hidg0)" as HID
+
+== Authentication ==
+User -> Browser: Access Pi URL
+Browser -> PiServer: GET /
+PiServer -> Browser: Serve index.html
+User -> Browser: Enter API key
+Browser -> Browser: Store key in localStorage
+
+== Recording & Transcription ==
+User -> Browser: Press "Start Recording"
+Browser -> Browser: MediaRecorder starts
+note right: Recording happens\nlocally in browser
+User -> Browser: Press "Stop Recording"
+Browser -> Browser: MediaRecorder stops
+Browser -> Browser: Convert to WAV blob
+
+Browser -> PiServer: POST /transcribe\n(X-API-Key header + audio WAV)
+PiServer -> PiServer: Validate API key
+alt Invalid API Key
+    PiServer -> Browser: 401 Unauthorized
+    Browser -> User: Show error status
+else Valid API Key
+    Browser -> User: Show "processing" status
+
+    PiServer -> GPUService: POST /transcribe\n(forward audio WAV)
+    GPUService -> GPUService: Whisper inference
+    GPUService -> PiServer: Return transcribed text
+
+    PiServer -> HID: Type text via type-ascii.py
+    HID -> User: Text appears on connected device
+
+    PiServer -> Browser: 200 OK
+    Browser -> User: Show "success" status
+end
+
+@enduml

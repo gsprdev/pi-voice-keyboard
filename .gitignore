@@ -2,6 +2,7 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 
 # Build outputs and dependencies
+consumer/build/
 service/bin/
 
 # Downloaded models

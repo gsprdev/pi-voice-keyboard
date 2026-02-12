@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Dictation Service</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #1a1a1a;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            width: 100%;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            gap: 30px;
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .auth-section {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        .auth-section.hidden {
+            display: none;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #aaa;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            font-size: 16px;
+            border: 2px solid #444;
+            border-radius: 8px;
+            background: #333;
+            color: #fff;
+            font-family: monospace;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #0066cc;
+        }
+
+        .record-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .record-section.hidden {
+            display: none;
+        }
+
+        .record-button {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: none;
+            font-size: 1.2em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            position: relative;
+        }
+
+        .record-button:active {
+            transform: scale(0.95);
+        }
+
+        .record-button.idle {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .record-button.recording {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            color: white;
+            animation: pulse 1.5s infinite;
+        }
+
+        .record-button.processing {
+            background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+            color: white;
+            cursor: not-allowed;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+            }
+            50% {
+                box-shadow: 0 8px 32px rgba(245, 87, 108, 0.6);
+            }
+        }
+
+        .status {
+            text-align: center;
+            font-size: 1.1em;
+            min-height: 30px;
+            color: #aaa;
+        }
+
+        .status.error {
+            color: #ff6b6b;
+        }
+
+        .status.success {
+            color: #51cf66;
+        }
+
+        .button {
+            padding: 12px 24px;
+            font-size: 16px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .button-primary {
+            background: #0066cc;
+            color: white;
+        }
+
+        .button-primary:hover {
+            background: #0052a3;
+        }
+
+        .button-secondary {
+            background: #444;
+            color: white;
+            margin-top: 10px;
+        }
+
+        .button-secondary:hover {
+            background: #555;
+        }
+
+        .settings-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .settings-link a {
+            color: #0066cc;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .settings-link a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            h1 {
+                font-size: 1.5em;
+            }
+
+            .record-button {
+                width: 180px;
+                height: 180px;
+            }
+        }
+
+        @media (min-height: 800px) {
+            .record-button {
+                width: 250px;
+                height: 250px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dictation Service</h1>
+
+        <!-- Authentication Section -->
+        <div id="authSection" class="auth-section">
+            <div class="form-group">
+                <label for="apiKey">API Key</label>
+                <input type="text" id="apiKey" placeholder="Enter your API key" autocomplete="off" autocapitalize="off">
+            </div>
+            <button class="button button-primary" onclick="saveApiKey()">Connect</button>
+        </div>
+
+        <!-- Recording Section -->
+        <div id="recordSection" class="record-section hidden">
+            <button id="recordButton" class="record-button idle" onclick="toggleRecording()">
+                <span id="buttonText">TAP TO RECORD</span>
+            </button>
+            <div id="status" class="status">Ready</div>
+            <div class="settings-link">
+                <a onclick="showSettings()">Change API Key</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder = null;
+        let audioChunks = [];
+        let isRecording = false;
+        let isProcessing = false;
+        let apiKey = '';
+
+        // Load API key from localStorage on page load
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem('apiKey');
+            if (savedKey) {
+                apiKey = savedKey;
+                showRecordingUI();
+            }
+        });
+
+        function saveApiKey() {
+            const input = document.getElementById('apiKey');
+            const key = input.value.trim();
+
+            if (!key) {
+                alert('Please enter an API key');
+                return;
+            }
+
+            apiKey = key;
+            localStorage.setItem('apiKey', key);
+            showRecordingUI();
+        }
+
+        function showSettings() {
+            document.getElementById('recordSection').classList.add('hidden');
+            document.getElementById('authSection').classList.remove('hidden');
+            document.getElementById('apiKey').value = apiKey;
+        }
+
+        function showRecordingUI() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('recordSection').classList.remove('hidden');
+            updateStatus('Ready', '');
+        }
+
+        async function toggleRecording() {
+            if (isProcessing) {
+                return;
+            }
+
+            if (!isRecording) {
+                await startRecording();
+            } else {
+                await stopRecording();
+            }
+        }
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        sampleRate: 16000,
+                        echoCancellation: true,
+                        noiseSuppression: true
+                    }
+                });
+
+                audioChunks = [];
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'audio/webm;codecs=opus'
+                });
+
+                mediaRecorder.ondataavailable = (event) => {
+                    if (event.data.size > 0) {
+                        audioChunks.push(event.data);
+                    }
+                };
+
+                mediaRecorder.onstop = async () => {
+                    // Stop all tracks
+                    stream.getTracks().forEach(track => track.stop());
+
+                    // Process the recording
+                    await processRecording();
+                };
+
+                mediaRecorder.start();
+                isRecording = true;
+                updateButton('recording', 'RECORDING...');
+                updateStatus('Recording in progress', '');
+
+            } catch (error) {
+                console.error('Error starting recording:', error);
+                updateStatus('Microphone access denied', 'error');
+            }
+        }
+
+        async function stopRecording() {
+            if (mediaRecorder && isRecording) {
+                mediaRecorder.stop();
+                isRecording = false;
+            }
+        }
+
+        async function processRecording() {
+            isProcessing = true;
+            updateButton('processing', 'PROCESSING...');
+            updateStatus('Transcribing...', '');
+
+            try {
+                const audioBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
+
+                // Convert to WAV using Web Audio API
+                const wavBlob = await convertToWav(audioBlob);
+
+                // Send to server
+                const response = await fetch('/transcribe', {
+                    method: 'POST',
+                    headers: {
+                        'X-API-Key': apiKey
+                    },
+                    body: wavBlob
+                });
+
+                if (response.status === 401) {
+                    updateStatus('Authentication failed - check API key', 'error');
+                    setTimeout(showSettings, 2000);
+                } else if (response.ok) {
+                    updateStatus('Success!', 'success');
+                    setTimeout(() => {
+                        updateStatus('Ready', '');
+                    }, 2000);
+                } else {
+                    const errorText = await response.text();
+                    console.error('Transcription error:', errorText);
+                    updateStatus('Transcription failed', 'error');
+                    setTimeout(() => {
+                        updateStatus('Ready', '');
+                    }, 3000);
+                }
+
+            } catch (error) {
+                console.error('Error processing recording:', error);
+                updateStatus('Error: ' + error.message, 'error');
+                setTimeout(() => {
+                    updateStatus('Ready', '');
+                }, 3000);
+            } finally {
+                isProcessing = false;
+                updateButton('idle', 'TAP TO RECORD');
+            }
+        }
+
+        async function convertToWav(webmBlob) {
+            const arrayBuffer = await webmBlob.arrayBuffer();
+            const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+            // Resample to 16kHz mono
+            const offlineContext = new OfflineAudioContext(1, audioBuffer.duration * 16000, 16000);
+            const source = offlineContext.createBufferSource();
+            source.buffer = audioBuffer;
+            source.connect(offlineContext.destination);
+            source.start();
+
+            const resampled = await offlineContext.startRendering();
+
+            // Convert to WAV format
+            const wav = encodeWav(resampled);
+            return new Blob([wav], { type: 'audio/wav' });
+        }
+
+        function encodeWav(audioBuffer) {
+            const numChannels = 1;
+            const sampleRate = audioBuffer.sampleRate;
+            const format = 1; // PCM
+            const bitDepth = 16;
+
+            const samples = audioBuffer.getChannelData(0);
+            const buffer = new ArrayBuffer(44 + samples.length * 2);
+            const view = new DataView(buffer);
+
+            // WAV header
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + samples.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, format, true);
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, sampleRate * numChannels * bitDepth / 8, true);
+            view.setUint16(32, numChannels * bitDepth / 8, true);
+            view.setUint16(34, bitDepth, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, samples.length * 2, true);
+
+            // Write PCM samples
+            let offset = 44;
+            for (let i = 0; i < samples.length; i++) {
+                const s = Math.max(-1, Math.min(1, samples[i]));
+                view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+                offset += 2;
+            }
+
+            return buffer;
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+
+        function updateButton(state, text) {
+            const button = document.getElementById('recordButton');
+            const buttonText = document.getElementById('buttonText');
+
+            button.className = 'record-button ' + state;
+            buttonText.textContent = text;
+        }
+
+        function updateStatus(message, type) {
+            const status = document.getElementById('status');
+            status.textContent = message;
+            status.className = 'status ' + type;
+        }
+    </script>
+</body>
+</html>
