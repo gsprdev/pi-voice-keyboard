@@ -1,0 +1,21 @@
+@startuml
+node "Foot Switch" as footswitch
+node "Raspberry Pi Zero 2 W" as pi {
+  component "ptt.py\n(GPIO listener)" as ptt
+  component "type-ascii.py\n(/tmp/kb.sock)" as kb
+  component "/dev/hidg0\n(HID gadget)" as hid
+}
+node "Remote GPU Server" as gpu {
+  component "Transcription Service\n(port 8080)" as service
+  component "Whisper + CUDA" as whisper
+}
+node "Host PC" as pc
+
+footswitch -down-> ptt : GPIO trigger
+ptt --> service : POST /transcribe\n(HTTP over WiFi)
+service --> whisper
+service -down-> ptt : text response
+ptt --> kb : Unix socket
+kb --> hid : HID reports
+hid --> pc : USB OTG cable\n(keyboard input)
+@enduml

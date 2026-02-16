@@ -1,0 +1,127 @@
+<?xml version="1.0"?>
+<?plantuml 1.2026.1?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" contentStyleType="text/css" data-diagram-type="DESCRIPTION" height="737px" preserveAspectRatio="none" style="width:501px;height:737px;background:#FFFFFF;" version="1.1" viewBox="0 0 501 737" width="501px" zoomAndPan="magnify">
+  <defs/>
+  <g>
+    <!--cluster pi-->
+    <g class="cluster" data-qualified-name="pi" data-source-line="2" id="ent0003">
+      <polygon fill="none" points="16,130,26,120,243,120,243,578,233,588,16,588,16,130" style="stroke:#181818;stroke-width:1;"/>
+      <line style="stroke:#181818;stroke-width:1;" x1="233" x2="243" y1="130" y2="120"/>
+      <line style="stroke:#181818;stroke-width:1;" x1="16" x2="233" y1="130" y2="130"/>
+      <line style="stroke:#181818;stroke-width:1;" x1="233" x2="233" y1="130" y2="588"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="151.8994" x="49.5503" y="147.9659">Raspberry Pi Zero 2 W</text>
+    </g>
+    <!--cluster gpu-->
+    <g class="cluster" data-qualified-name="gpu" data-source-line="7" id="ent0007">
+      <polygon fill="none" points="272,324,282,314,484,314,484,568.5,474,578.5,272,578.5,272,324" style="stroke:#181818;stroke-width:1;"/>
+      <line style="stroke:#181818;stroke-width:1;" x1="474" x2="484" y1="324" y2="314"/>
+      <line style="stroke:#181818;stroke-width:1;" x1="272" x2="474" y1="324" y2="324"/>
+      <line style="stroke:#181818;stroke-width:1;" x1="474" x2="474" y1="324" y2="578.5"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" font-weight="bold" lengthAdjust="spacing" textLength="136.0095" x="305.9953" y="341.9659">Remote GPU Server</text>
+    </g>
+    <!--entity ptt-->
+    <g class="entity" data-qualified-name="pi.ptt" data-source-line="3" id="ent0004">
+      <rect fill="#F1F1F1" height="68.1358" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="135.5916" x="82" y="163"/>
+      <rect fill="#F1F1F1" height="10" style="stroke:#181818;stroke-width:0.5;" width="15" x="197.5916" y="168"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="195.5916" y="170"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="195.5916" y="174"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="38.2199" x="97" y="197.9659">ptt.py</text>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="95.5916" x="97" y="217.0339">(GPIO listener)</text>
+    </g>
+    <!--entity kb-->
+    <g class="entity" data-qualified-name="pi.kb" data-source-line="4" id="ent0005">
+      <rect fill="#F1F1F1" height="68.1358" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="134.7796" x="82.5" y="357"/>
+      <rect fill="#F1F1F1" height="10" style="stroke:#181818;stroke-width:0.5;" width="15" x="197.2796" y="362"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="195.2796" y="364"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="195.2796" y="368"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="81.2137" x="97.5" y="391.9659">type-ascii.py</text>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="94.7796" x="97.5" y="411.0339">(/tmp/kb.sock)</text>
+    </g>
+    <!--entity hid-->
+    <g class="entity" data-qualified-name="pi.hid" data-source-line="5" id="ent0006">
+      <rect fill="#F1F1F1" height="68.1358" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="124.0137" x="83" y="504"/>
+      <rect fill="#F1F1F1" height="10" style="stroke:#181818;stroke-width:0.5;" width="15" x="187.0137" y="509"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="185.0137" y="511"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="185.0137" y="515"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="71.5257" x="98" y="538.9659">/dev/hidg0</text>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="84.0137" x="98" y="558.0339">(HID gadget)</text>
+    </g>
+    <!--entity service-->
+    <g class="entity" data-qualified-name="gpu.service" data-source-line="8" id="ent0008">
+      <rect fill="#F1F1F1" height="68.1358" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="177.6335" x="289" y="357"/>
+      <rect fill="#F1F1F1" height="10" style="stroke:#181818;stroke-width:0.5;" width="15" x="446.6335" y="362"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="444.6335" y="364"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="444.6335" y="368"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="137.6335" x="304" y="391.9659">Transcription Service</text>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="71.9877" x="304" y="411.0339">(port 8080)</text>
+    </g>
+    <!--entity whisper-->
+    <g class="entity" data-qualified-name="gpu.whisper" data-source-line="9" id="ent0009">
+      <rect fill="#F1F1F1" height="49.0679" rx="2.5" ry="2.5" style="stroke:#181818;stroke-width:0.5;" width="147.8136" x="304" y="513.5"/>
+      <rect fill="#F1F1F1" height="10" style="stroke:#181818;stroke-width:0.5;" width="15" x="431.8136" y="518.5"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="429.8136" y="520.5"/>
+      <rect fill="#F1F1F1" height="2" style="stroke:#181818;stroke-width:0.5;" width="4" x="429.8136" y="524.5"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="107.8136" x="319" y="548.4659">Whisper + CUDA</text>
+    </g>
+    <!--entity footswitch-->
+    <g class="entity" data-qualified-name="footswitch" data-source-line="1" id="ent0002">
+      <polygon fill="#F1F1F1" points="92,16,102,6,207.6277,6,207.6277,45.0679,197.6277,55.0679,92,55.0679,92,16" style="stroke:#181818;stroke-width:0.5;"/>
+      <line style="stroke:#181818;stroke-width:0.5;" x1="197.6277" x2="207.6277" y1="16" y2="6"/>
+      <line style="stroke:#181818;stroke-width:0.5;" x1="92" x2="197.6277" y1="16" y2="16"/>
+      <line style="stroke:#181818;stroke-width:0.5;" x1="197.6277" x2="197.6277" y1="16" y2="55.0679"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="75.6277" x="107" y="40.9659">Foot Switch</text>
+    </g>
+    <!--entity pc-->
+    <g class="entity" data-qualified-name="pc" data-source-line="11" id="ent0010">
+      <polygon fill="#F1F1F1" points="99,681,109,671,190.5618,671,190.5618,710.0679,180.5618,720.0679,99,720.0679,99,681" style="stroke:#181818;stroke-width:0.5;"/>
+      <line style="stroke:#181818;stroke-width:0.5;" x1="180.5618" x2="190.5618" y1="681" y2="671"/>
+      <line style="stroke:#181818;stroke-width:0.5;" x1="99" x2="180.5618" y1="681" y2="681"/>
+      <line style="stroke:#181818;stroke-width:0.5;" x1="180.5618" x2="180.5618" y1="681" y2="720.0679"/>
+      <text fill="#000000" font-family="sans-serif" font-size="14" lengthAdjust="spacing" textLength="51.5618" x="114" y="705.9659">Host PC</text>
+    </g>
+    <!--link footswitch to ptt-->
+    <g class="link" data-entity-1="ent0002" data-entity-2="ent0004" data-link-type="dependency" data-source-line="13" id="lnk11">
+      <path d="M150,55.07 C150,83.32 150,124.84 150,156.8" fill="none" id="footswitch-to-ptt" style="stroke:#181818;stroke-width:1;"/>
+      <polygon fill="#181818" points="150,162.8,154,153.8,150,157.8,146,153.8,150,162.8" style="stroke:#181818;stroke-width:1;"/>
+      <text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="77.3761" x="151" y="99.897">GPIO trigger</text>
+    </g>
+    <!--link ptt to service-->
+    <g class="link" data-entity-1="ent0004" data-entity-2="ent0008" data-link-type="dependency" data-source-line="14" id="lnk12">
+      <path d="M178.21,231.09 C199.46,255.68 227.06,286.81 240,298 C265.16,319.75 290.6213,337.4152 316.5813,353.7452" fill="none" id="ptt-to-service" style="stroke:#181818;stroke-width:1;"/>
+      <polygon fill="#181818" points="321.66,356.94,316.1717,348.762,317.4277,354.2777,311.9121,355.5337,321.66,356.94" style="stroke:#181818;stroke-width:1;"/>
+      <text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="102.5051" x="241" y="275.897">POST /transcribe</text>
+      <text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="99.2291" x="242.638" y="293.603">(HTTP over WiFi)</text>
+    </g>
+    <!--link service to ptt-->
+    <g class="link" data-entity-1="ent0008" data-entity-2="ent0004" data-link-type="dependency" data-source-line="16" id="lnk14">
+      <path d="M378.94,356.99 C377.96,328.14 371.95,286.93 348,261 C314.84,225.09 267.2392,210.4589 224.1992,203.7889" fill="none" id="service-to-ptt" style="stroke:#181818;stroke-width:1;"/>
+      <polygon fill="#181818" points="218.27,202.87,226.5513,208.2011,223.211,203.6357,227.7764,200.2955,218.27,202.87" style="stroke:#181818;stroke-width:1;"/>
+      <text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="83.3561" x="369" y="284.897">text response</text>
+    </g>
+    <!--link service to whisper-->
+    <g class="link" data-entity-1="ent0008" data-entity-2="ent0009" data-link-type="dependency" data-source-line="15" id="lnk13">
+      <path d="M378,425.27 C378,452.19 378,483.44 378,507.38" fill="none" id="service-to-whisper" style="stroke:#181818;stroke-width:1;"/>
+      <polygon fill="#181818" points="378,513.38,382,504.38,378,508.38,374,504.38,378,513.38" style="stroke:#181818;stroke-width:1;"/>
+    </g>
+    <!--link ptt to kb-->
+    <g class="link" data-entity-1="ent0004" data-entity-2="ent0005" data-link-type="dependency" data-source-line="17" id="lnk15">
+      <path d="M136.1,231.13 C132.77,240.6 129.69,251.06 128,261 C122.47,293.59 128.6169,325.0627 136.4269,351.1127" fill="none" id="ptt-to-kb" style="stroke:#181818;stroke-width:1;"/>
+      <polygon fill="#181818" points="138.15,356.86,139.3969,347.0904,136.7141,352.0706,131.7339,349.3878,138.15,356.86" style="stroke:#181818;stroke-width:1;"/>
+      <text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="70.4471" x="129" y="284.897">Unix socket</text>
+    </g>
+    <!--link kb to hid-->
+    <g class="link" data-entity-1="ent0005" data-entity-2="ent0006" data-link-type="dependency" data-source-line="18" id="lnk16">
+      <path d="M148.85,425.27 C148.04,448.84 147.1563,474.3535 146.3463,497.8935" fill="none" id="kb-to-hid" style="stroke:#181818;stroke-width:1;"/>
+      <polygon fill="#181818" points="146.14,503.89,150.4471,495.0329,146.3119,498.893,142.4519,494.7578,146.14,503.89" style="stroke:#181818;stroke-width:1;"/>
+      <text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="71.7601" x="149" y="469.897">HID reports</text>
+    </g>
+    <!--link hid to pc-->
+    <g class="link" data-entity-1="ent0006" data-entity-2="ent0010" data-link-type="dependency" data-source-line="19" id="lnk17">
+      <path d="M145,572.36 C145,601.99 145,638.55 145,664.81" fill="none" id="hid-to-pc" style="stroke:#181818;stroke-width:1;"/>
+      <polygon fill="#181818" points="145,670.81,149,661.81,145,665.81,141,661.81,145,670.81" style="stroke:#181818;stroke-width:1;"/>
+      <text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="90.9091" x="150.901" y="618.897">USB OTG cable</text>
+      <text fill="#000000" font-family="sans-serif" font-size="13" lengthAdjust="spacing" textLength="100.7111" x="146" y="636.603">(keyboard input)</text>
+    </g>
+    <?plantuml-src NL1BQy904BxlhnWyLKgCz2Gz55h5nydGH8JIIxAPnY6wk-oEZr3wtxkRg2KzplUO-UPJkaGOpBLcIC_4SZU0tC6Ndrqx2jKAtdDd2hIsWOJW0ws69zYsKaFmBG2aFXYjK34C3FF8D9_gOP6irh0dnwZG3ZirSr_CZS4eTvAeyyHyC75TZ9oMTMUfYxuZBl4KxwYinbw-NCsWoiiAkHDxNFpSCkD1Cy8YsK2AzeIsLLJc-3zmPdFbf2N3f5Mh9Ob-kT6MOJAUZBlThYFwtksEd44BZp3Tp5vRtRc3xZcMsZ4aq-v_ASHVkH2L-goYbr0BF4FR5rkgAkyEKEIfwrLF9-iqWvYlOOkGS9bb2MZ_6cnfJaDn4mVZBSOTwzrYl31OTFuFX_TZTU6fZQ8BXFwHXGS2xclrH2ZROcZ5YO04niZWIDzWdIr0viK-nAgnANHkIo1bZZpy1G00?>
+  </g>
+</svg>

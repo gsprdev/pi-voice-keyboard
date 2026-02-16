@@ -38,6 +38,10 @@ See [CLAUDE.md](CLAUDE.md) for detailed instructions.
 - **consumer/** - Raspberry Pi scripts for USB keyboard emulation
 - **whisper.cpp/** - Whisper inference library (cloned from upstream)
 
+### Push-to-Talk Sequence
+
+![Overview Diagram](overview.svg)
+
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) - Complete setup and usage guide

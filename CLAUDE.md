@@ -26,14 +26,6 @@ PORT=9000 ./run.sh                # Run on custom port
 
 The service is a Go module (Go 1.25+) using CGO to link against whisper.cpp. `build.sh` sets the required `CGO_CFLAGS`, `CGO_LDFLAGS`, and `CGO_CXXFLAGS` pointing to the whisper.cpp build output. `run.sh` sets `LD_LIBRARY_PATH` at runtime.
 
-### Consumer Web Server (cross-compiled for Pi)
-```sh
-cd consumer
-./build-web-server.sh             # Cross-compile Go web server for linux/arm64
-```
-
-Output goes to `consumer/build/`. The web server requires TLS certs (`cert.pem`/`key.pem`) and auto-generates an API key in `web-server-config.txt` on first run.
-
 ### Consumer (Raspberry Pi)
 ```sh
 # On the Pi:
@@ -81,11 +73,10 @@ Microphone → parecord → 16kHz WAV → POST /transcribe
    - `dictation-service.sh` - Interactive Enter-to-start/stop loop for testing
    - Captures audio with `parecord`, sends to service, forwards result to Pi
 
-3. **consumer/** - Python/Bash/Go on Raspberry Pi Zero 2 W
+3. **consumer/** - Python/Bash on Raspberry Pi Zero 2 W
    - `type-ascii.py` - Converts text to USB HID keyboard reports via `/dev/hidg0`; listens on a Unix socket (`/tmp/kb.sock`)
    - `kb-serve.sh` - Bridges TCP port 1234 to the Unix socket using `socat`
    - `gadget-*.sh` - USB HID gadget setup/teardown via Linux configfs
-   - `web-server.go` - HTTPS server (port 8081) with embedded web UI for browser-based dictation; authenticates via API key, forwards audio to the transcription service, and types via HID socket
 
 ## Key Technical Details
 
