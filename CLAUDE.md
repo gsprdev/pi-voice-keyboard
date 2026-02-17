@@ -29,8 +29,9 @@ The service is a Go module (Go 1.25+) using CGO to link against whisper.cpp. `bu
 ### Consumer (Raspberry Pi)
 ```sh
 # On the Pi:
-./gadget-install.sh               # One-time: installs scripts to /usr/sbin and enables systemd service
-./kb-serve.sh                     # Start keyboard server (listens on port 1234)
+cd consumer
+sudo ./gadget-install.sh          # One-time: installs scripts/services to system
+sudo systemctl enable --now type-ascii.service ptt.service
 ```
 
 ### Testing the Service
@@ -43,52 +44,53 @@ There are no automated tests or linting configured in this project.
 
 ## Environment Variables
 
-Service configuration:
+Service configuration (GPU host):
 - `PORT` - HTTP port (default: 8080)
 - `MODEL_PATH` - Path to Whisper model (default: `../speech-models/en_whisper_medium.ggml`)
 - `MODEL_LANGUAGE` - Transcription language (default: `en`)
 
-Producer configuration:
-- `SERVICE_URL` - Transcription endpoint (default: `http://localhost:8080/transcribe`)
-- `REMOTE_HOST` - Pi hostname (default: `pi02w.local`)
-- `REMOTE_PORT` - Pi keyboard server port (default: `1234`)
+Push-to-Talk configuration (`/etc/default/ptt` on Pi):
+- `PTT_SERVICE_URL` - Base URL to transcription service (required, e.g., `http://gpu-host.local:8080`)
+
+Service will use `/health` for startup checks and `/transcribe` for audio processing.
 
 ## Architecture
 
 ```
-Microphone → parecord → 16kHz WAV → POST /transcribe
-→ Whisper (GPU) → text → SSH tunnel → netcat
-→ kb-serve.sh → type-ascii.py → /dev/hidg0 → USB keyboard
+Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
+→ Whisper (GPU) → text → local Unix socket
+→ type-ascii.py → /dev/hidg0 → USB keyboard
 ```
 
-**Three components:**
+**Two components:**
 
 1. **service/** - Go HTTP server running on GPU host
    - `POST /transcribe` - Accepts 16kHz WAV (`Content-Type: audio/wav`), returns plain text
    - `GET /health` - Returns "OK" when ready
    - Loads Whisper model once at startup, reuses for all requests
 
-2. **producer/** - Bash scripts on the workstation
-   - `dictation-toggle.sh` - Toggle recording on/off, bind to a keyboard shortcut for daily use
-   - `dictation-service.sh` - Interactive Enter-to-start/stop loop for testing
-   - Captures audio with `parecord`, sends to service, forwards result to Pi
-
-3. **consumer/** - Python/Bash on Raspberry Pi Zero 2 W
-   - `type-ascii.py` - Converts text to USB HID keyboard reports via `/dev/hidg0`; listens on a Unix socket (`/tmp/kb.sock`)
-   - `kb-serve.sh` - Bridges TCP port 1234 to the Unix socket using `socat`
+2. **consumer/** - Python services on Raspberry Pi Zero 2 W
+   - `ptt.py` - Push-to-talk GPIO handler: records audio, sends to service, receives text
+   - `type-ascii.py` - Converts text to USB HID keyboard reports via `/dev/hidg0`
+   - Unix socket server: binds `/run/kb-serve/kb.sock` (managed via `RuntimeDirectory=`)
    - `gadget-*.sh` - USB HID gadget setup/teardown via Linux configfs
 
 ## Key Technical Details
 
 - Audio format: 16kHz mono 16-bit PCM WAV (standard Whisper input)
 - USB HID: Standard boot keyboard descriptor, 8-byte reports `[modifier, reserved, key1-6]`
-- The dictation toggle stores state in `/tmp/dictation-toggle/` (PID files and temp audio)
+- Socket path: `/run/kb-serve/kb.sock` (created by `type-ascii.py`, directory managed by systemd `RuntimeDirectory=`)
+- GPIO pins: Button on GPIO 24, LEDs on GPIO 17/22, buzzer on GPIO 27
 
 ## Dependencies
 
 GPU host:
 ```sh
-sudo apt install nvidia-cuda-toolkit pulseaudio-utils curl openssh-client netcat-openbsd libnotify-bin
+sudo apt install nvidia-cuda-toolkit
 ```
 
-Raspberry Pi: Python 3, socat, configured with `otg_mode=1` in `/boot/config.txt`
+Raspberry Pi:
+```sh
+sudo apt install python3 python3-gpiozero alsa-utils
+# Configure USB OTG: add dtoverlay=dwc2 to /boot/config.txt
+```

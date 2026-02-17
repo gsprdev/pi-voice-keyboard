@@ -7,14 +7,13 @@ PREFIX="/usr"
 SBIN_DIR="$PREFIX/sbin"
 SYSTEMD_DIR="/etc/systemd/system"
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-
-rm -f "$SBIN_DIR/kb-serve"
 rm -f "$SBIN_DIR/gadget-bind"
 rm -f "$SBIN_DIR/gadget-unbind"
 rm -f "$SBIN_DIR/gadget-uninstall"
 rm -f "$SBIN_DIR/type-ascii"
-rm -f "$SYSTEMD_DIR/kb-serve.service"
+rm -f "$SBIN_DIR/ptt"
+rm -f "$SYSTEMD_DIR/kb-serve.socket"
+rm -f "$SYSTEMD_DIR/type-ascii.service"
 rm -f "$SYSTEMD_DIR/ptt.service"
 
 systemctl daemon-reload

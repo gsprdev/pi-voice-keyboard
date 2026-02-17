@@ -1,52 +1,63 @@
 # Raspberry Pi Voice Keyboard
 
-A speech-to-text transcription system using Whisper with NVIDIA GPU acceleration, designed to reduce hand strain from extended typing.
-Uses via Raspberry Pi Zero 2 W as a USB HID gadget.
+A speech-to-text transcription system using Whisper with NVIDIA GPU acceleration, designed to reduce hand strain from extended typing. Uses a Raspberry Pi Zero 2 W as a USB HID keyboard gadget with physical push-to-talk button.
 
 ## Features
 
 - **GPU-accelerated transcription** - 0.02x-0.19x realtime with medium.en Whisper model using NVIDIA CUDA (essentially instantaneous)
 - **Raspberry Pi integration** - Types transcribed text as a USB keyboard, no-fuss compatibility
-- **Simple dictation interface** - Bind a keyboard shortcut for hands-free operation
+- **Physical push-to-talk** - Hardware button on Pi for recording control
 - **Production ready** - In daily use by author
 
-### Prerequisites
+## Prerequisites
 
 - NVIDIA GPU with CUDA support
-- Raspberry Pi Zero W (for USB HID keyboard gadget)
-- A micro-USB OTG cable
+- Raspberry Pi Zero 2 W with GPIO components (button, LEDs, buzzer)
+- Micro-USB OTG cable
 - Ubuntu-based Linux (for the `nvidia-cuda-toolkit` multiverse package)
 
-Non-Ubuntu systems can be *theoretically* be used, through alternative drivers directly from NVIDIA.
+Non-Ubuntu systems can theoretically be used, through alternative drivers directly from NVIDIA.
 
-### Basic Setup
+## Quick Start
 
-On the GPU-bearing Linux host:
+### GPU Host Setup
 
-1. `sudo apt install nvidia-cuda-toolkit`
-2. `./build-whisper-cuda.sh`
-3. Download a Whisper model using `./download-model.sh`
-4. Set up Raspberry Pi as USB keyboard
-5. Configure producer scripts for recording dictation
+```bash
+sudo apt install nvidia-cuda-toolkit
+./build-whisper-cuda.sh
+./download-model.sh medium.en
+cd service && ./build.sh && ./run.sh
+```
+
+### Raspberry Pi Setup
+
+```bash
+# Configure /boot/config.txt with dtoverlay=dwc2
+# Wire GPIO button to pin 24, LEDs to pins 17/22, buzzer to pin 27
+cd consumer
+sudo ./gadget-install.sh
+sudo systemctl enable --now kb-serve.socket type-ascii.service ptt.service
+```
 
 See [CLAUDE.md](CLAUDE.md) for detailed instructions.
 
 ## Architecture
 
 - **service/** - Go HTTP service for GPU-accelerated transcription
-- **producer/** - Client scripts for audio capture and dictation
-- **consumer/** - Raspberry Pi scripts for USB keyboard emulation
-- **whisper.cpp/** - Whisper inference library (cloned from upstream)
+- **consumer/** - Raspberry Pi services for USB keyboard emulation and push-to-talk
+- **whisper.cpp/** - Whisper inference library (git submodule)
 
-### Push-to-Talk Sequence
+### Push-to-Talk Flow
 
-![Overview Diagram](overview.svg)
+```
+Button press (GPIO) → arecord → HTTP POST → Whisper (GPU) → text
+→ Unix socket → type-ascii → /dev/hidg0 → USB keyboard
+```
 
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) - Complete setup and usage guide
 - [consumer/README.md](consumer/README.md) - Raspberry Pi setup documentation
-- [producer/README.md](producer/README.md) - Producer scripts documentation
 
 ## License
 

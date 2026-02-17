@@ -1,10 +1,6 @@
 #!/usr/bin/env python3
 # Extended HID boot keyboard typer for /dev/hidg0 - Full ASCII support
 
-import argparse
-import fileinput
-import os
-import signal
 import socket
 import sys
 import time
@@ -64,16 +60,16 @@ def send_char(fd, ch):
     """Send a single character with full ASCII support"""
     mod = 0
     kc = 0
-    
+
     # Letters a-z
     if 'a' <= ch <= 'z':
         kc = key_for_letter(ch)
-    
+
     # Letters A-Z (with shift)
     elif 'A' <= ch <= 'Z':
         kc = key_for_letter(ch)
         mod = MOD_LSHIFT
-    
+
     # Numbers 0-9
     elif ch == '0':
         kc = KEY_0
@@ -95,7 +91,7 @@ def send_char(fd, ch):
         kc = KEY_8
     elif ch == '9':
         kc = KEY_9
-    
+
     # Special characters (unshifted)
     elif ch == ' ':
         kc = KEY_SPACE
@@ -127,7 +123,7 @@ def send_char(fd, ch):
         kc = KEY_PERIOD
     elif ch == '/':
         kc = KEY_SLASH
-    
+
     # Special characters (shifted)
     elif ch == '_':
         kc = KEY_MINUS
@@ -162,7 +158,7 @@ def send_char(fd, ch):
     elif ch == '?':
         kc = KEY_SLASH
         mod = MOD_LSHIFT
-    
+
     # Shifted numbers for symbols
     elif ch == '!':
         kc = KEY_1
@@ -194,7 +190,7 @@ def send_char(fd, ch):
     elif ch == ')':
         kc = KEY_0
         mod = MOD_LSHIFT
-    
+
     else:
         raise ValueError(f"Unsupported character: {ch} (ord: {ord(ch)})")
 
@@ -206,43 +202,16 @@ def send_char(fd, ch):
     fd.flush()
     time.sleep(0.01)
 
-def stream_from_source(source_iter, hid_fd):
-    """Read lines from *source_iter* and type them."""
-    for line in source_iter:
-        for ch in line:          # preserve exact characters, including newlines
-            send_char(hid_fd, ch)
-
-def cleanup_socket(path):
-    """Remove the socket file on exit (ignore errors)."""
-    try:
-        os.unlink(path)
-    except OSError:
-        pass
-
 def main():
-    parser = argparse.ArgumentParser(
-        description="HID typer – persistent Unix‑domain socket server.")
-    parser.add_argument(
-        "--socket", metavar="PATH", required=True,
-        help="Path of the Unix‑domain socket to listen on.")
-    args = parser.parse_args()
+    if len(sys.argv) != 2:
+        print(f"usage: {sys.argv[0]} SOCKET_PATH", file=sys.stderr)
+        sys.exit(1)
 
-    # Make sure a stale socket file isn’t left behind
-    cleanup_socket(args.socket)
-
-    # Register a handler so Ctrl‑C removes the socket file
-    def sigint_handler(signum, frame):
-        print("\n[!] Shutting down…", file=sys.stderr)
-        cleanup_socket(args.socket)
-        sys.exit(0)
-
-    signal.signal(signal.SIGINT, sigint_handler)
-    signal.signal(signal.SIGTERM, sigint_handler)
-
+    sock_path = sys.argv[1]
     srv = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-    srv.bind(args.socket)
-    srv.listen(5) # Concurrent write attempts will be processed sequentially
-    print(f"[+] Listening on {args.socket}", file=sys.stderr)
+    srv.bind(sock_path)
+    srv.listen(5)
+    print(f"[+] Listening on {sock_path}", file=sys.stderr)
 
     # Open the HID device once – reuse it for every client
     with open(DEV, "wb", buffering=0) as hid_fd:

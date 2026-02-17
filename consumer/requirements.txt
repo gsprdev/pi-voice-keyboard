@@ -1,1 +1,2 @@
+# Note: These dependencies ship on the Pi by default, so you don't need to install them manually. They're listed here for reference.
 gpiozero

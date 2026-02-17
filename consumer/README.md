@@ -1,54 +1,81 @@
-# Consumer Scripts (Raspberry Pi)
+# Consumer (Raspberry Pi)
 
-Copy all of these files to the Raspberry Pi Zero 2 W.
+Scripts and services for running a Raspberry Pi Zero 2 W as a USB HID keyboard gadget with push-to-talk dictation.
 
-Scripts for setting up and running a Raspberry Pi Zero 2 W as a USB HID keyboard gadget when connected via USB OTG cable.
+## Hardware Setup
 
-## config.txt
+Enable USB OTG and mic support in `/boot/config.txt`. Key settings:
 
 ```
-# OTG mode required to function as a USB gadget (Keyboard)
-[cm4]
+# Allows function as USB gadget
 otg_mode=1
+
+# MEMS I2C Card (microphone)
+dtparam=i2s=on
+dtparam=audio=on
+dtoverlay=googlevoicehat-soundcard
 ```
 
-Run the ./gadget-install.sh script for setup.
+Wire GPIO components.
+For simplicity, all components lead from a single GPIO to GND.
 
-### Installing the Keyboard Service
+- Button: GPIO 24 (pull-up, active low)
+- Recording LED: GPIO 17
+- Processing LED: GPIO 22
+- Status buzzer: GPIO 27
 
-The installation script installs kb-serve.service and ptt.service on the Raspberry Pi as systemd services.
+## Installation
 
 ```bash
-# Install the USB gadget (one-time setup)
+# One-time setup (installs to /usr/sbin and /etc/systemd/system)
+cd consumer
 sudo ./gadget-install.sh
-systemctl enable --now kb-serve.service
+
+# Enable and start services
+sudo systemctl enable --now kb-serve.socket
+sudo systemctl enable --now type-ascii.service
+sudo systemctl enable --now ptt.service
 ```
 
-### Removal
+## Services
 
-The installation process adds `gadget-uninstall` to sbin, for complete reset.
-As this is for Pi, designed primarily for this sole purpose, the uninstallation script serves primarily to facilitate
-testing of reinstallation.
+### type-ascii.service
+
+Python service that converts text to USB HID keyboard reports via `/dev/hidg0`.
+Uses systemd socket activation to listen on `/run/kb-serve/kb.sock`.
+
+### kb-serve.socket
+
+Systemd socket unit managing the Unix domain socket for keyboard input.
+
+### ptt.service
+
+Push-to-talk service monitoring GPIO button.
+Records audio on press, sends to transcription service, types the result.
+
+## Configuration
+
+**REQUIRED:** Create `/etc/default/ptt` from the example template:
+
+```bash
+sudo cp ptt.env.example /etc/default/ptt
+sudo nano /etc/default/ptt
+```
+
+Set this environment variable:
+- `PTT_SERVICE_URL` - Base URL to transcription service (e.g., `http://gpu-host.local:8080`)
+
+The service will check `/health` endpoint at startup and use `/transcribe` for audio processing.
+
+## Removal
 
 ```bash
 sudo gadget-uninstall
 ```
 
-## Keyboard Service
-
-The keyboard service listens on a Unix socket and types any text it receives as HID keyboard input.
-
-### Components
-
-- **type-ascii.py**: Python script that converts text to HID keyboard reports
-- **kb-serve.sh**: Wrapper that exposes the Unix socket over TCP (port 1234)
-
-### Testing Locally
+## Testing
 
 ```bash
-# Type text directly via the Unix socket
-echo "Hello from Pi!" | socat - UNIX-CONNECT:/tmp/kb.sock
-
-# Type text via TCP (from another machine)
-echo "Hello from remote!" | nc <pi-ip> 1234
+# Type text directly via the socket
+echo "Hello from Pi!" | socat - UNIX-CONNECT:/run/kb-serve/kb.sock
 ```

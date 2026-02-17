@@ -1,20 +1,35 @@
 #!/usr/bin/env python3
 
-import http.client
 import os
 import re
 import socket
 import subprocess
+import sys
 import tempfile
 from signal import pause
 from time import sleep
+from urllib.parse import urlparse
+from urllib.request import Request, urlopen
 
 from gpiozero import LED, Button, TonalBuzzer
 from gpiozero.tones import Tone
 
-# Configuration
-TRANSCRIPTION_HOST = "grog.local"
-TRANSCRIPTION_PORT = 8080
+# Configuration - REQUIRED: Edit these before use
+SERVICE_URL = os.environ.get("PTT_SERVICE_URL")
+
+if not SERVICE_URL:
+    print("ERROR: Required configuration missing!", file=sys.stderr)
+    print("Set environment variable:", file=sys.stderr)
+    print("  PTT_SERVICE_URL - Base URL to transcription service", file=sys.stderr)
+    print("  Example: http://gpu-host.local:8080", file=sys.stderr)
+    sys.exit(1)
+
+# Remove trailing slash for consistency
+SERVICE_URL = SERVICE_URL.rstrip('/')
+
+# Service endpoints
+HEALTH_URL = f"{SERVICE_URL}/health"
+TRANSCRIBE_URL = f"{SERVICE_URL}/transcribe"
 
 ledRecording = LED(17)
 ledProcessing = LED(22)
@@ -32,6 +47,17 @@ def start_recording():
     global recording_process, temp_file
 
     print("Button pressed - starting recording")
+
+    # Perform health check
+    if not check_service_health():
+        print("ERROR: Transcription service is not reachable", file=sys.stderr)
+        print(f"Verify {SERVICE_URL} is accessible and service is running", file=sys.stderr)
+        for _ in range(3):
+            ledRecording.on()
+            buzzer.play(Tone(frequency=buzzer_freq))
+            sleep(.1)
+            buzzer.stop()
+            ledRecording.off()
 
     # Touch a temp file for arecord to use
     temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
@@ -82,17 +108,16 @@ def stop_recording():
             print("No audio data recorded")
             return
 
-        conn = http.client.HTTPConnection(TRANSCRIPTION_HOST, TRANSCRIPTION_PORT)
-        headers = {
-            'Content-Type': 'application/octet-stream'
-        }
-
         print(f"Sending {len(audio_data)} bytes to transcription service...")
-        conn.request('POST', '/transcribe', body=audio_data, headers=headers)
 
-        response = conn.getresponse()
-        transcription = response.read().decode('utf-8')
-        conn.close()
+        request = Request(
+            TRANSCRIBE_URL,
+            data=audio_data,
+            headers={'Content-Type': 'application/octet-stream'}
+        )
+
+        with urlopen(request) as response:
+            transcription = response.read().decode('utf-8')
 
         print(f"Transcription: {transcription}")
 
@@ -108,9 +133,12 @@ def stop_recording():
     transcription = clean_transcription(transcription)
 
     if transcription:
-        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
-            sock.connect('/tmp/kb.sock')
-            sock.sendall(transcription.encode('utf-8'))
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
+                sock.connect('/run/kb-serve/kb.sock')
+                sock.sendall(transcription.encode('utf-8'))
+        except Exception as e:
+            print(f"Error sending to keyboard service: {e}")
 
 
 def clean_transcription(transcription):
@@ -136,7 +164,24 @@ def clean_transcription(transcription):
     cleaned = re.sub(r'\s{2,}', ' ', cleaned)
     return cleaned.strip()
 
+def check_service_health():
+    """Check if transcription service is reachable before starting"""
+    try:
+        print(f"Checking service health at {HEALTH_URL}...")
+        with urlopen(HEALTH_URL, timeout=5) as response:
+            status = response.read().decode('utf-8').strip()
+            if status == "OK":
+                print("Service health check passed")
+                return True
+            else:
+                print(f"Service health check returned unexpected status: {status}")
+                return False
+    except Exception as e:
+        print(f"Service health check failed: {e}", file=sys.stderr)
+        return False
+
 btn.when_pressed = start_recording
 btn.when_released = stop_recording
 
+print("Push-to-talk service ready")
 pause()
