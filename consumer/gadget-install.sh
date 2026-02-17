@@ -15,8 +15,10 @@ install -v -m 0755 "$SCRIPT_DIR/gadget-uninstall.sh" "$SBIN_DIR/gadget-uninstall
 install -v -m 0755 "$SCRIPT_DIR/type-ascii.py" "$SBIN_DIR/type-ascii"
 
 cp "$SCRIPT_DIR/kb-serve.service" "$SYSTEMD_DIR/"
+cp "$SCRIPT_DIR/ptt.service" "$SYSTEMD_DIR/"
 
 systemctl daemon-reload
 
-echo "Installed service unit at $SYSTEMD_DIR/kb-serve.service"
-echo "Enable and start with: sudo systemctl enable --now kb-serve.service"
+echo "Enable and start with:"
+echo "systemctl enable --now kb-serve.service"
+echo "systemctl enable --now ptt.service"

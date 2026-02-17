@@ -1,0 +1,14 @@
+[Unit]
+Description=Push-To-Talk Service
+Wants=kb-serve.target
+
+[Service]
+Type=simple
+Environment=PATH=/usr/sbin:/usr/bin:/bin
+ExecStart=/home/gspr/consumer/ptt.py
+Restart=on-failure
+RestartSec=20s
+
+[Install]
+WantedBy=multi-user.target
+

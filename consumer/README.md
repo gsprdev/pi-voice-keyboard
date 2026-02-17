@@ -16,7 +16,7 @@ Run the ./gadget-install.sh script for setup.
 
 ### Installing the Keyboard Service
 
-The installation script installs kb-serve.service on the Raspberry Pi as a systemd service.
+The installation script installs kb-serve.service and ptt.service on the Raspberry Pi as systemd services.
 
 ```bash
 # Install the USB gadget (one-time setup)
