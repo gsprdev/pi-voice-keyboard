@@ -92,8 +92,8 @@ fi
 echo
 echo "Next steps:"
 echo "  1. Rebuild the Go service:"
-echo "     cd ../service && ./build.sh"
+echo "     cd ../transcribe-whisper && ./build.sh"
 echo "  2. Run the service:"
-echo "     cd ../service && ./run.sh"
+echo "     cd ../transcribe-whisper && ./run.sh"
 echo "  3. GPU will be used automatically!"
 echo

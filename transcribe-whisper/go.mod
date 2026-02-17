@@ -1,4 +1,4 @@
-module transcription-service
+module transcribe-whisper
 
 go 1.25.3
 

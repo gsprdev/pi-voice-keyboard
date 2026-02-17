@@ -1,4 +1,4 @@
-# Consumer (Raspberry Pi)
+# Keyboard (Raspberry Pi)
 
 Scripts and services for running a Raspberry Pi Zero 2 W as a USB HID keyboard gadget with push-to-talk dictation.
 
@@ -28,7 +28,7 @@ For simplicity, all components lead from a single GPIO to GND.
 
 ```bash
 # One-time setup (installs to /usr/sbin and /etc/systemd/system)
-cd consumer
+cd pi
 sudo ./gadget-install.sh
 
 # Enable and start services

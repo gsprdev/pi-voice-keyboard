@@ -1,0 +1,12 @@
+[Unit]
+Description=Transcription Server
+AssertPathExists=%h/src/pi-voice-keyboard/transcribe-whisper/bin/transcribe-whisper
+
+[Service]
+Type=simple
+WorkingDirectory=%h/src/pi-voice-keyboard/transcribe-whisper/
+ExecStart=%h/src/pi-voice-keyboard/transcribe-whisper/run.sh
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

@@ -14,6 +14,6 @@ export CGO_LDFLAGS="-L${WHISPER_CPP_DIR}/build/src -lwhisper -L${WHISPER_CPP_DIR
 
 # Build the service
 echo "Building transcription service..."
-go build -o bin/transcription-service
+go build -o bin/transcribe-whisper
 
-echo "Build complete: bin/transcription-service"
+echo "Build complete: bin/transcribe-whisper"

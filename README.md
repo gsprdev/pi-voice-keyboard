@@ -1,6 +1,7 @@
 # Raspberry Pi Voice Keyboard
 
-A speech-to-text transcription system using Whisper with NVIDIA GPU acceleration, designed to reduce hand strain from extended typing. Uses a Raspberry Pi Zero 2 W as a USB HID keyboard gadget with physical push-to-talk button.
+A speech-to-text transcription system using Whisper with NVIDIA GPU acceleration, designed to reduce hand strain from extended typing.
+Uses a Raspberry Pi Zero 2 W as a USB HID keyboard gadget with physical push-to-talk button.
 
 ## Features
 
@@ -26,7 +27,7 @@ Non-Ubuntu systems can theoretically be used, through alternative drivers direct
 sudo apt install nvidia-cuda-toolkit
 ./build-whisper-cuda.sh
 ./download-model.sh medium.en
-cd service && ./build.sh && ./run.sh
+cd transcribe-whisper && ./build.sh && ./run.sh
 ```
 
 ### Raspberry Pi Setup
@@ -34,7 +35,7 @@ cd service && ./build.sh && ./run.sh
 ```bash
 # Configure /boot/config.txt with dtoverlay=dwc2
 # Wire GPIO button to pin 24, LEDs to pins 17/22, buzzer to pin 27
-cd consumer
+cd pi
 sudo ./gadget-install.sh
 sudo systemctl enable --now kb-serve.socket type-ascii.service ptt.service
 ```
@@ -43,8 +44,8 @@ See [CLAUDE.md](CLAUDE.md) for detailed instructions.
 
 ## Architecture
 
-- **service/** - Go HTTP service for GPU-accelerated transcription
-- **consumer/** - Raspberry Pi services for USB keyboard emulation and push-to-talk
+- **transcribe-whisper/** - Go HTTP service for GPU-accelerated transcription
+- **pi/** - Raspberry Pi services for USB keyboard emulation and push-to-talk
 - **whisper.cpp/** - Whisper inference library (git submodule)
 
 ### Push-to-Talk Flow
@@ -57,7 +58,7 @@ Button press (GPIO) → arecord → HTTP POST → Whisper (GPU) → text
 ## Documentation
 
 - [CLAUDE.md](CLAUDE.md) - Complete setup and usage guide
-- [consumer/README.md](consumer/README.md) - Raspberry Pi setup documentation
+- [pi/README.md](pi/README.md) - Raspberry Pi setup documentation
 
 ## License
 

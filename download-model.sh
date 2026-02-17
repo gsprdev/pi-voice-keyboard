@@ -104,4 +104,4 @@ echo ""
 echo "File size:"
 ls -lh "$OUTPUT_NAME" | awk '{print "  " $5}'
 echo ""
-echo "To use this model, update the modelPath in service/main.go or set MODEL_PATH environment variable."
+echo "To use this model, update the modelPath in transcribe-whisper/main.go or set MODEL_PATH environment variable."

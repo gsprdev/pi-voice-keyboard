@@ -18,4 +18,4 @@ echo "Starting transcription service on port $PORT..."
 echo ""
 
 # Run the service
-./bin/transcription-service
+./bin/transcribe-whisper
