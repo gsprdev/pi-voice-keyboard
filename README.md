@@ -3,6 +3,8 @@
 A speech-to-text transcription system using Whisper with NVIDIA GPU acceleration, designed to reduce hand strain from extended typing.
 Uses a Raspberry Pi Zero 2 W as a USB HID keyboard gadget with physical push-to-talk button.
 
+For a demonstration, see https://gspr.dev/posts/pi_voice_keyboard/
+
 ## Features
 
 - **GPU-accelerated transcription** - 0.02x-0.19x realtime with medium.en Whisper model using NVIDIA CUDA (essentially instantaneous)
