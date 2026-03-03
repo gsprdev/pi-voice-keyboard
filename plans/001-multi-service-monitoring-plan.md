@@ -26,19 +26,16 @@ PTT_HEALTH_CHECK_INTERVAL=10
 PTT_HEALTH_CHECK_TIMEOUT=200
 ```
 
-### Backward compatibility
+### No backward compatibility
 
-[TODO: CLARIFY] Should `PTT_SERVICE_URL` (singular, the current variable) still be accepted as a single-entry fallback for users who haven't migrated their config?
-**Options:**
-- Support both: if `PTT_SERVICE_URLS` is not set, fall back to `PTT_SERVICE_URL`.
-- Hard rename: require users to update their env file.
-- Recommendation: support both, with a deprecation warning logged at startup.
+`PTT_SERVICE_URL` (singular) is removed with no migration shim.
+The env file is under our control and will be updated directly.
 
 ### Validation at startup
 
 Parse `PTT_SERVICE_URLS` into an ordered list.
 Exit with a clear error message if the variable is missing or contains no valid URLs.
-Invalid individual entries (malformed URLs) should log a warning and be skipped, not cause a hard exit.
+Invalid individual entries (malformed URLs) should log a warning and be skipped rather than cause a hard exit.
 
 ---
 
@@ -65,46 +62,49 @@ Health check logic per round:
 
 Public API:
 - `get_selected() -> str | None` — returns the current selected base URL (thread-safe).
-- `is_any_healthy() -> bool` — convenience check.
-- `start()` — starts the background thread and optionally blocks until first round completes (see startup behavior below).
+- `get_healthy_in_order() -> list[str]` — returns all currently healthy base URLs in preference order (thread-safe).
+  Used by `stop_recording()` to build the fallback list.
+- `start()` — starts the background daemon thread and returns immediately.
 
 ### Startup behavior
 
-[TODO: CLARIFY] Should `ptt.py` wait for the first health check round before declaring itself ready?
-
-**Options:**
-- **Block until ready**: `HealthMonitor.start()` does an initial synchronous check round, then starts the background loop.
-  Benefit: "Service ready" is only printed once a server is known.
-  Risk: if no server is reachable at boot, the service hangs (needs a timeout/give-up).
-- **Non-blocking start**: the monitor starts immediately in the background with `_selected = None`.
-  The button handler handles the "no server yet" case gracefully (same as "all servers unhealthy").
-  Recommendation: non-blocking, as it is more robust and the Pi may boot before the network is ready.
-
-[TODO: CLARIFY] If non-blocking: print a startup notice like `"Health monitor started; waiting for a server to become available"` rather than `"Service ready"` until a server is selected?
+The monitor starts immediately in the background with `_selected = None`.
+Service startup does not block waiting for a healthy server — unavailability at boot is treated identically to a server going down later.
+Startup log: `"Health monitor started (checking {N} servers every {interval}s)"`.
 
 ### Removal of inline health check
 
-The current `check_service_health()` call in `start_recording()` is removed.
-Its role is replaced by consulting `monitor.get_selected()`.
+The current `check_service_health()` function and its call in `start_recording()` are deleted.
+The monitor is the sole arbiter of server availability.
+
+### Error signaling conventions
+
+All error/alert patterns use a 100 ms gap between each blink/beep step.
+
+| Condition | Pattern |
+|---|---|
+| No server available at button press | 3 pulses (blink + beep each) |
+| All transcription attempts failed | 2 pulses (blink + beep each) |
+| Recording start / normal acknowledgement | 1 pulse (existing behavior, unchanged) |
 
 ### Changes to `start_recording()`
 
 1. Call `monitor.get_selected()`.
-2. [TODO: CLARIFY] If no server is selected, should recording be skipped entirely, or should we record anyway and fail at transcription time?
-   **Current behavior**: recording proceeds even if the health check fails (just beeps).
-   **Proposed behavior**: if no server is healthy, skip recording, play error tones, and return early.
-   This makes more sense given the goal is to avoid recording audio that cannot be transcribed.
-3. Store the selected server URL at the moment the button is pressed.
-   This avoids a race where the selected server changes between press and release.
+2. If no server is selected (monitor has not yet found a healthy server, or all are down):
+   - Play the 3-pulse no-server error pattern (with 100 ms gaps).
+   - Return early — do **not** start recording.
+   This fixes the existing bug where recording proceeded past a failed health check.
+3. Store the selected server URL in a module-level variable (e.g., `active_server`).
+   Capturing it at press time avoids a race where the selected server changes between press and release.
+4. Continue with `arecord` startup and the single acknowledgement pulse as before.
 
 ### Changes to `stop_recording()`
 
-1. Use the server URL captured at button-press time as the primary target.
-2. If the transcription request fails (network error, timeout, non-200 response):
-   - Try the remaining healthy servers in preference order (excluding the failed one).
-   - [TODO: CLARIFY] Should this retry all remaining healthy servers (greedy), or only try once with the next one?
-     Recommendation: greedy — try all healthy servers before giving up, since transcription is a one-shot high-value event.
-3. If all attempts fail, log an error and play error tones (same UX as current behavior).
+1. Build a candidate list: `[active_server] + [s for s in monitor.get_healthy_in_order() if s != active_server]`.
+   This puts the server chosen at press-time first, then any other currently-healthy servers in preference order.
+2. Attempt transcription against each candidate in order until one succeeds.
+3. If all candidates fail, log an error and play the 2-pulse all-failed error pattern.
+4. Clear `active_server` after the attempt (success or total failure).
 
 ---
 
@@ -112,19 +112,21 @@ Its role is replaced by consulting `monitor.get_selected()`.
 
 ### `pi/ptt.py`
 
-- Add `HealthMonitor` class.
-- Replace `SERVICE_URL` / `HEALTH_URL` / `TRANSCRIBE_URL` globals with parsed config + monitor instance.
-- Remove `check_service_health()` function.
-- Update `start_recording()` and `stop_recording()` as described above.
+- Add `HealthMonitor` class (see above).
+- Replace `SERVICE_URL` / `HEALTH_URL` / `TRANSCRIBE_URL` globals with a parsed `servers` list and a `monitor` instance.
+- Add `active_server: str | None = None` module-level variable to capture the server at press time.
+- Remove `check_service_health()`.
+- Rewrite `start_recording()` and `stop_recording()` as described above.
+- Add 100 ms inter-step gaps to all error pulse sequences.
 
 ### `pi/ptt.env.example`
 
 - Replace `PTT_SERVICE_URL` with `PTT_SERVICE_URLS` (with a comment explaining comma-separation and preference order).
 - Add `PTT_HEALTH_CHECK_INTERVAL` and `PTT_HEALTH_CHECK_TIMEOUT` with comments.
 
-### `CLAUDE.md` / `pi/README.md`
+### `CLAUDE.md` and `pi/README.md`
 
-- Update env var documentation to reflect new names and format.
+- Update env var documentation to reflect the new names and multi-URL format.
 
 ---
 
@@ -134,12 +136,3 @@ Its role is replaced by consulting `monitor.get_selected()`.
 - No changes to `type-ascii.py`.
 - No persistent state across restarts (monitor re-learns server health from scratch on startup).
 - No weighted load balancing — strict preference order only.
-
----
-
-## Open questions (TODOs requiring clarification)
-
-1. **Backward compat for `PTT_SERVICE_URL`** — rename or support both?
-2. **Startup blocking** — block until first healthy server found, or start immediately with `_selected = None`?
-3. **No-server behavior in `start_recording()`** — skip recording, or record and fail later?
-4. **Transcription fallback granularity** — try all remaining healthy servers, or just one next?
