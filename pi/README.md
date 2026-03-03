@@ -62,10 +62,13 @@ sudo cp ptt.env.example /etc/default/ptt
 sudo nano /etc/default/ptt
 ```
 
-Set this environment variable:
-- `PTT_SERVICE_URL` - Base URL to transcription service (e.g., `http://gpu-host.local:8080`)
+Set these environment variables:
+- `PTT_SERVICE_URLS` - Comma-separated list of transcription service URLs in preference order (required, e.g., `http://gpu-host.local:8080,http://fallback.local:8080`)
+- `PTT_HEALTH_CHECK_INTERVAL` - Seconds between health checks per server (default: `10`)
+- `PTT_HEALTH_CHECK_TIMEOUT` - Milliseconds per health check request (default: `200`)
 
-The service will check `/health` endpoint at startup and use `/transcribe` for audio processing.
+Background health monitors track each server.
+The first healthy server is used for transcription, with automatic fallback to the next.
 
 ## Removal
 

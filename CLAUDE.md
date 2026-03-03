@@ -54,9 +54,12 @@ Service configuration (GPU host):
 - `MODEL_LANGUAGE` - Transcription language (default: `en`)
 
 Push-to-Talk configuration (`/etc/default/ptt` on Pi):
-- `PTT_SERVICE_URL` - Base URL to transcription service (required, e.g., `http://gpu-host.local:8080`)
+- `PTT_SERVICE_URLS` - Comma-separated list of transcription service URLs in preference order (required, e.g., `http://gpu-host.local:8080,http://fallback.local:8080`)
+- `PTT_HEALTH_CHECK_INTERVAL` - Seconds between health checks per server (default: `10`)
+- `PTT_HEALTH_CHECK_TIMEOUT` - Milliseconds per health check request (default: `200`)
 
-Service will use `/health` for startup checks and `/transcribe` for audio processing.
+Background health monitors track each server independently.
+The first healthy server in preference order is used for transcription.
 
 ## Architecture
 

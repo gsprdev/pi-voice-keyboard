@@ -6,6 +6,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 from signal import pause
 from time import sleep
 from urllib.parse import urlparse
@@ -14,23 +15,36 @@ from urllib.request import Request, urlopen
 from gpiozero import LED, Button, TonalBuzzer
 from gpiozero.tones import Tone
 
-# Configuration - REQUIRED: Edit these before use
-SERVICE_URL = os.environ.get("PTT_SERVICE_URL")
 
-if not SERVICE_URL:
+class Server:
+    def __init__(self, url):
+        self.url = url
+        self.healthy = False
+
+
+# Configuration
+raw_urls = os.environ.get("PTT_SERVICE_URLS")
+
+if not raw_urls:
     print("ERROR: Required configuration missing!", file=sys.stderr)
     print("Set environment variable:", file=sys.stderr)
-    print("  PTT_SERVICE_URL - Base URL to transcription service", file=sys.stderr)
-    print("  Example: http://gpu-host.local:8080", file=sys.stderr)
+    print("  PTT_SERVICE_URLS - Comma-separated list of transcription service URLs", file=sys.stderr)
+    print("  Example: http://gpu-host.local:8080,http://fallback.local:8080", file=sys.stderr)
     sys.exit(1)
 
-# Remove trailing slash for consistency
-SERVICE_URL = SERVICE_URL.rstrip('/')
+servers = []
+for raw in raw_urls.split(","):
+    url = raw.strip().rstrip("/")
+    parsed = urlparse(url)
+    if not parsed.scheme or not parsed.netloc:
+        print(f"ERROR: Malformed URL: {raw.strip()}", file=sys.stderr)
+        sys.exit(1)
+    servers.append(Server(url))
 
-# Service endpoints
-HEALTH_URL = f"{SERVICE_URL}/health"
-TRANSCRIBE_URL = f"{SERVICE_URL}/transcribe"
+health_check_interval = int(os.environ.get("PTT_HEALTH_CHECK_INTERVAL", "10"))
+health_check_timeout = int(os.environ.get("PTT_HEALTH_CHECK_TIMEOUT", "200")) / 1000
 
+# Hardware
 ledRecording = LED(17)
 ledProcessing = LED(22)
 btn = Button(24, bounce_time=0.2)
@@ -42,22 +56,50 @@ recording_process = None
 temp_file = None
 
 
+def health_check_loop(server, interval, timeout):
+    """Background health monitor for a single server."""
+    while True:
+        was_healthy = server.healthy
+        try:
+            with urlopen(f"{server.url}/health", timeout=timeout) as response:
+                body = response.read().decode("utf-8").strip()
+                server.healthy = response.status == 200 and body == "OK"
+        except Exception as e:
+            server.healthy = False
+            if was_healthy:
+                print(f"Health check failed for {server.url}: {e}")
+        if server.healthy != was_healthy:
+            status = "healthy" if server.healthy else "unhealthy"
+            print(f"Server {server.url} is now {status}")
+        sleep(interval)
+
+
+def get_healthy_servers():
+    """Return servers with healthy=True in preference order."""
+    return [s for s in servers if s.healthy]
+
+
+def error_signal(count):
+    """Play count blink+beep pulses with 100ms gaps."""
+    for _ in range(count):
+        ledRecording.on()
+        buzzer.play(Tone(frequency=buzzer_freq))
+        sleep(0.1)
+        buzzer.stop()
+        ledRecording.off()
+        sleep(0.1)
+
+
 def start_recording():
-    """Start recording when button is pressed"""
+    """Start recording when button is pressed."""
     global recording_process, temp_file
 
     print("Button pressed - starting recording")
 
-    # Perform health check
-    if not check_service_health():
-        print("ERROR: Transcription service is not reachable", file=sys.stderr)
-        print(f"Verify {SERVICE_URL} is accessible and service is running", file=sys.stderr)
-        for _ in range(3):
-            ledRecording.on()
-            buzzer.play(Tone(frequency=buzzer_freq))
-            sleep(.1)
-            buzzer.stop()
-            ledRecording.off()
+    if not get_healthy_servers():
+        print("ERROR: No healthy transcription servers available", file=sys.stderr)
+        error_signal(3)
+        return
 
     # Touch a temp file for arecord to use
     temp_file = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
@@ -81,7 +123,7 @@ def start_recording():
 
 
 def stop_recording():
-    """Stop recording and send to transcription service"""
+    """Stop recording and send to transcription service."""
     global recording_process, temp_file
 
     print("Button released - stopping recording")
@@ -96,35 +138,41 @@ def stop_recording():
     recording_process.wait()
     recording_process = None
 
-    # Send to transcription service
+    # Read audio data
     transcription = ""
     try:
         ledProcessing.on()
         with open(temp_file.name, 'rb') as f:
             audio_data = f.read()
 
-        # Abort if no audio data
         if not audio_data:
             print("No audio data recorded")
             return
 
         print(f"Sending {len(audio_data)} bytes to transcription service...")
 
-        request = Request(
-            TRANSCRIBE_URL,
-            data=audio_data,
-            headers={'Content-Type': 'application/octet-stream'}
-        )
-
-        with urlopen(request) as response:
-            transcription = response.read().decode('utf-8')
-
-        print(f"Transcription: {transcription}")
+        # Try each healthy server in preference order
+        candidates = get_healthy_servers()
+        for server in candidates:
+            try:
+                request = Request(
+                    f"{server.url}/transcribe",
+                    data=audio_data,
+                    headers={'Content-Type': 'application/octet-stream'}
+                )
+                with urlopen(request) as response:
+                    transcription = response.read().decode('utf-8')
+                print(f"Transcription from {server.url}: {transcription}")
+                break
+            except Exception as e:
+                print(f"Transcription failed on {server.url}: {e}")
+        else:
+            print("ERROR: All transcription attempts failed", file=sys.stderr)
+            error_signal(2)
 
     except Exception as e:
         print(f"Error during transcription: {e}")
     finally:
-        # Clean up temp file
         if temp_file and os.path.exists(temp_file.name):
             os.unlink(temp_file.name)
         temp_file = None
@@ -164,21 +212,17 @@ def clean_transcription(transcription):
     cleaned = re.sub(r'\s{2,}', ' ', cleaned)
     return cleaned.strip()
 
-def check_service_health():
-    """Check if transcription service is reachable before starting"""
-    try:
-        print(f"Checking service health at {HEALTH_URL}...")
-        with urlopen(HEALTH_URL, timeout=5) as response:
-            status = response.read().decode('utf-8').strip()
-            if status == "OK":
-                print("Service health check passed")
-                return True
-            else:
-                print(f"Service health check returned unexpected status: {status}")
-                return False
-    except Exception as e:
-        print(f"Service health check failed: {e}", file=sys.stderr)
-        return False
+
+# Start health monitor threads
+for server in servers:
+    t = threading.Thread(
+        target=health_check_loop,
+        args=(server, health_check_interval, health_check_timeout),
+        daemon=True,
+    )
+    t.start()
+
+print(f"Health monitor started ({len(servers)} servers, checking every {health_check_interval}s)")
 
 btn.when_pressed = start_recording
 btn.when_released = stop_recording
