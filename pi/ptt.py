@@ -113,7 +113,7 @@ def stop_recording():
         request = Request(
             TRANSCRIBE_URL,
             data=audio_data,
-            headers={'Content-Type': 'application/octet-stream'}
+            headers={'Content-Type': 'audio/wav'}
         )
 
         with urlopen(request) as response:
