@@ -1,0 +1,24 @@
+# USB Ethernet (CDC-ECM) — NetworkManager connection profile
+#
+# Subnet: 192.168.71.0/24
+#   Pi address:   192.168.71.1
+#   Host address:  192.168.71.2 (assigned by DHCP)
+#
+# To change the subnet, update the address1 line below and also update
+# the companion dnsmasq config: /etc/dnsmasq.d/usb0-dnsmasq.conf
+# Then reload: nmcli connection reload && systemctl restart dnsmasq
+
+[connection]
+id=usb0
+type=ethernet
+interface-name=usb0
+autoconnect=true
+
+[ipv4]
+method=manual
+address1=192.168.71.1/24
+route-metric=2000
+never-default=true
+
+[ipv6]
+method=link-local

@@ -19,8 +19,12 @@ install -v -m 0755 "$SCRIPT_DIR/ptt.py" "$SBIN_DIR/ptt"
 install -v -m 0644 "$SCRIPT_DIR/type-ascii.service" "$SYSTEMD_DIR/"
 install -v -m 0644 "$SCRIPT_DIR/ptt.service" "$SYSTEMD_DIR/"
 
+# Install USB ethernet network config
+install -v -m 0600 -o root -g root "$SCRIPT_DIR/usb0.nmconnection" /etc/NetworkManager/system-connections/
+
 systemctl daemon-reload
 
+echo ""
 echo "Installation complete."
 echo ""
 echo "REQUIRED: Configure ptt service before enabling:"
@@ -29,3 +33,6 @@ echo "  sudo nano /etc/default/ptt  # Edit with your GPU host and API key"
 echo ""
 echo "Then enable and start services:"
 echo "  systemctl enable --now type-ascii.service ptt.service"
+echo ""
+echo "To activate USB ethernet config:"
+echo "  nmcli connection reload"
