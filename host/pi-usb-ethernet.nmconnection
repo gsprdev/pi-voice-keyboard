@@ -18,6 +18,7 @@
 
 [connection]
 id=pi-usb-ethernet
+uuid=3c96d263-d7d9-4ba5-9035-f8262449e19e
 type=ethernet
 interface-name=enxaabbccddee01
 autoconnect=true

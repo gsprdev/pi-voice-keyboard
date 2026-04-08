@@ -5,10 +5,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 install -v -m 0600 -o root -g root \
-  "$SCRIPT_DIR/pi-usb-ethernet.nmconnection" \
-  /etc/NetworkManager/system-connections/
+  "$SCRIPT_DIR/99-pi-usb-ethernet.yaml" \
+  /etc/netplan/
 
-nmcli connection reload
+netplan apply
 
 echo ""
 echo "Host setup complete."
