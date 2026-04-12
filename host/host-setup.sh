@@ -2,13 +2,19 @@
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+# Delete existing connection if present, then create fresh.
+# Uses nmcli (D-Bus), which leverages polkit for authorization — no sudo needed.
+nmcli connection delete "Pi Voice KB USB Ethernet" 2>/dev/null || true
 
-install -v -m 0600 -o root -g root \
-  "$SCRIPT_DIR/99-pi-usb-ethernet.yaml" \
-  /etc/netplan/
-
-netplan apply
+nmcli connection add \
+  type ethernet \
+  con-name "Pi Voice KB USB Ethernet" \
+  ifname enxaabbccddee01 \
+  ipv4.method manual \
+  ipv4.addresses 192.168.71.2/24 \
+  ipv4.route-metric 2000 \
+  ipv4.never-default yes \
+  connection.autoconnect yes
 
 echo ""
 echo "Host setup complete."
