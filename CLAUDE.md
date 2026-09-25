@@ -38,6 +38,17 @@ sudo ./gadget-install.sh          # One-time: installs scripts/services to syste
 sudo systemctl enable --now type-ascii.service ptt.service
 ```
 
+### Keyboard (Raspberry Pi Pico 2 W, in progress)
+```sh
+cd pico
+./build.sh                        # Build firmware: build/voice-keyboard.uf2
+stty -F /dev/ttyACM0 1200         # Reboot a running Pico into BOOTSEL for flashing
+```
+
+C firmware using pico-sdk (git submodule at `pico/pico-sdk`) and TinyUSB.
+`build.sh` initializes the submodule and the SDK libraries it needs.
+See `pico/README.md` for the staged roadmap.
+
 ### Testing the Service
 ```sh
 cd transcribe-whisper
@@ -66,7 +77,7 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
 → type-ascii.py → /dev/hidg0 → USB keyboard
 ```
 
-**Two components:**
+**Components:**
 
 1. **transcribe-whisper/** - Go HTTP server running on GPU host
    - `POST /transcribe` - Accepts 16kHz WAV (`Content-Type: audio/wav`), returns plain text
@@ -78,6 +89,10 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
    - `type-ascii.py` - Converts text to USB HID keyboard reports via `/dev/hidg0`
    - Unix socket server: binds `/run/kb-serve/kb.sock` (managed via `RuntimeDirectory=`)
    - `gadget-*.sh` - USB HID gadget setup/teardown via Linux configfs
+
+3. **pico/** - Replacement firmware for the Pi, on a Pico 2 W (in progress)
+   - Composite USB device: HID boot keyboard + CDC serial console (logs)
+   - `src/typer.c` - Port of `type-ascii.py`, driven from the main loop
 
 ## Key Technical Details
 

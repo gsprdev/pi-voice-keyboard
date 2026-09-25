@@ -3,6 +3,7 @@
 
 # Build outputs and dependencies
 transcribe-whisper/bin/
+pico/build/
 
 # Downloaded models
 speech-models/
