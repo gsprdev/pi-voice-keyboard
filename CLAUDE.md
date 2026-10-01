@@ -42,12 +42,15 @@ sudo systemctl enable --now type-ascii.service ptt.service
 ```sh
 cd pico
 ./build.sh                        # Build firmware: build/voice-keyboard.uf2
+PICO_BOARD=pico2 ./build.sh       # Plain Pico 2 (no Wi-Fi): build-pico2/
+MIC_TIMING=standard ./build.sh    # Standard I2S mic instead of SPH0645
 stty -F /dev/ttyACM0 1200         # Reboot a running Pico into BOOTSEL for flashing
+tools/capture.py test.wav         # Record from the audio serial port (stage 2 mic check)
 ```
 
 C firmware using pico-sdk (git submodule at `pico/pico-sdk`) and TinyUSB.
 `build.sh` initializes the submodule and the SDK libraries it needs.
-See `pico/README.md` for the staged roadmap.
+See `pico/PLAN.md` for design decisions, pin assignments, and the staged roadmap.
 
 ### Testing the Service
 ```sh
@@ -91,15 +94,18 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
    - `gadget-*.sh` - USB HID gadget setup/teardown via Linux configfs
 
 3. **pico/** - Replacement firmware for the Pi, on a Pico 2 W (in progress)
-   - Composite USB device: HID boot keyboard + CDC serial console (logs)
+   - Composite USB device: HID boot keyboard + CDC console (logs) + CDC audio (raw PCM)
    - `src/typer.c` - Port of `type-ascii.py`, driven from the main loop
+   - `src/mic.c`, `src/mic_i2s.pio` - I2S mic via PIO + DMA at 32kHz, decimated to 16kHz mono PCM
+   - `src/pins.h` - GPIO assignments
 
 ## Key Technical Details
 
 - Audio format: 16kHz mono 16-bit PCM WAV (standard Whisper input)
 - USB HID: Standard boot keyboard descriptor, 8-byte reports `[modifier, reserved, key1-6]`
 - Socket path: `/run/kb-serve/kb.sock` (created by `type-ascii.py`, directory managed by systemd `RuntimeDirectory=`)
-- GPIO pins: Button on GPIO 24, LEDs on GPIO 17/22, buzzer on GPIO 27
+- GPIO pins (Pi): Button on GPIO 24, LEDs on GPIO 17/22, buzzer on GPIO 27
+- GPIO pins (Pico): see `pico/src/pins.h`; GPIO 23-25 and 29 are reserved on the Pico 2 W
 
 ## Dependencies
 

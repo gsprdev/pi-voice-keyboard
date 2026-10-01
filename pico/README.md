@@ -3,27 +3,32 @@
 Firmware replacing the Pi Zero 2 W keyboard with a Pico 2 W microcontroller.
 The transcription service is unchanged: audio is streamed to `POST /transcribe` and the response is typed.
 
-## Roadmap
+See [PLAN.md](PLAN.md) for design decisions, pin assignments, and the staged roadmap.
 
-1. **USB keyboard** *(current)*: text written to the USB serial console is typed on the USB keyboard
-2. **Microphone**: ICS-43434 via PIO I2S; raw audio dumped over the serial console to verify capture
-3. **Wi-Fi streaming**: chunked upload to `/transcribe` while the button is held
-4. **Multiple servers**: priority list with background health checks (from the `multi-backend` branch)
-5. **USB networking**: USB host as a transcription server, CDC-NCM alongside Wi-Fi (from the `usb-networking` branch)
-6. **Polish**: buzzer, LEDs, watchdog, configuration
+## Status
+
+1. **USB keyboard**: done
+2. **Microphone**: built, awaiting hardware verification
+3. Wi-Fi streaming
+4. Multiple servers
+5. USB networking
+6. Polish
 
 ## USB interfaces
 
 The Pico appears as a composite device:
 
 - **HID boot keyboard**: the keyboard itself, same report format as the Pi gadget
-- **CDC serial console** (`/dev/ttyACM0` on Linux): logs, and text input for stage 1
+- **Console** (`/dev/ttyACM0` on Linux): logs, and text input for stage 1
+- **Audio** (`/dev/ttyACM1`): raw 16 kHz mono 16-bit PCM while the port is open
 
 ## Build
 
 ```sh
 sudo apt install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
-./build.sh                        # Output: build/voice-keyboard.uf2
+./build.sh                             # Pico 2 W: build/voice-keyboard.uf2
+PICO_BOARD=pico2 ./build.sh            # Plain Pico 2: build-pico2/voice-keyboard.uf2
+MIC_TIMING=standard ./build.sh         # Standard I2S mic (ICS-43434 etc.) instead of SPH0645
 ```
 
 pico-sdk is a git submodule.
@@ -31,7 +36,7 @@ pico-sdk is a git submodule.
 
 ## Flash
 
-First time: hold BOOTSEL while plugging in the Pico, then copy `build/voice-keyboard.uf2` to the `RP2350` drive that appears.
+First time: hold BOOTSEL while plugging in the Pico, then copy the `.uf2` to the `RP2350` drive that appears.
 
 Afterwards, the firmware can be put back into BOOTSEL mode without touching the button:
 
@@ -39,9 +44,16 @@ Afterwards, the firmware can be put back into BOOTSEL mode without touching the 
 stty -F /dev/ttyACM0 1200         # Reboots into BOOTSEL; the RP2350 drive reappears
 ```
 
-## Try it (stage 1)
+## Wiring
 
-Anything written to the serial console is typed on the keyboard, into whichever window has focus.
+See the pin table in [PLAN.md](PLAN.md#pins).
+For stage 2 only the microphone is needed: SCK → GP10, WS → GP11, SD → GP12, SEL → GND, plus 3V3 and GND.
+
+## Try it
+
+### Stage 1: keyboard
+
+Anything written to the console is typed on the keyboard, into whichever window has focus.
 Delay the write so there's time to focus a text editor:
 
 ```sh
@@ -52,3 +64,16 @@ sleep 3; printf 'Hello, world!\n' > /dev/ttyACM0
 
 Supported characters match `pi/type-ascii.py`: printable ASCII, tab, newline, and backspace.
 Anything else is skipped and logged.
+
+### Stage 2: microphone
+
+Record from the audio port, then listen to the result:
+
+```sh
+tools/capture.py test.wav                                      # 5 seconds, prints levels
+aplay test.wav
+tools/capture.py test.wav --transcribe http://gpu-host:8080   # Also transcribe it
+```
+
+The levels line (peak, RMS, DC offset, clipped samples) helps diagnose wiring and timing problems.
+See [Verifying stage 2](PLAN.md#verifying-stage-2).

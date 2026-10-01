@@ -6,9 +6,10 @@
 
 #define CFG_TUD_ENDPOINT0_SIZE  64
 
-// Composite device: HID keyboard + CDC serial (logs, stage 1 text input)
+// Composite device: HID keyboard + two CDC serial ports
+// (console: logs and text input; audio: raw microphone capture)
 #define CFG_TUD_HID             1
-#define CFG_TUD_CDC             1
+#define CFG_TUD_CDC             2
 #define CFG_TUD_MSC             0
 #define CFG_TUD_MIDI            0
 #define CFG_TUD_VENDOR          0
@@ -16,7 +17,7 @@
 #define CFG_TUD_HID_EP_BUFSIZE  8
 
 #define CFG_TUD_CDC_RX_BUFSIZE  256
-#define CFG_TUD_CDC_TX_BUFSIZE  256
+#define CFG_TUD_CDC_TX_BUFSIZE  4096 // ~125ms of 16kHz audio
 #define CFG_TUD_CDC_EP_BUFSIZE  64
 
 #endif

@@ -1,4 +1,5 @@
-// USB descriptors for the composite device: HID boot keyboard + CDC serial.
+// USB descriptors for the composite device: HID boot keyboard + two CDC serial
+// ports. The console must be the first CDC interface, since stdio_usb uses it.
 
 #include "pico/unique_id.h"
 #include "tusb.h"
@@ -9,8 +10,10 @@
 
 enum {
     ITF_NUM_HID,
-    ITF_NUM_CDC,
-    ITF_NUM_CDC_DATA,
+    ITF_NUM_CDC_CONSOLE,
+    ITF_NUM_CDC_CONSOLE_DATA,
+    ITF_NUM_CDC_AUDIO,
+    ITF_NUM_CDC_AUDIO_DATA,
     ITF_NUM_TOTAL
 };
 
@@ -20,13 +23,17 @@ enum {
     STR_PRODUCT,
     STR_SERIAL,
     STR_HID,
-    STR_CDC,
+    STR_CDC_CONSOLE,
+    STR_CDC_AUDIO,
 };
 
 #define EPNUM_HID       0x81
-#define EPNUM_CDC_NOTIF 0x82
-#define EPNUM_CDC_OUT   0x03
-#define EPNUM_CDC_IN    0x83
+#define EPNUM_CDC_CONSOLE_NOTIF 0x82
+#define EPNUM_CDC_CONSOLE_OUT   0x03
+#define EPNUM_CDC_CONSOLE_IN    0x83
+#define EPNUM_CDC_AUDIO_NOTIF   0x84
+#define EPNUM_CDC_AUDIO_OUT     0x05
+#define EPNUM_CDC_AUDIO_IN      0x85
 
 static const tusb_desc_device_t desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -60,14 +67,16 @@ const uint8_t *tud_hid_descriptor_report_cb(uint8_t instance) {
     return desc_hid_report;
 }
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + TUD_CDC_DESC_LEN)
+#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + 2 * TUD_CDC_DESC_LEN)
 
 static const uint8_t desc_configuration[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 120),
     TUD_HID_DESCRIPTOR(ITF_NUM_HID, STR_HID, HID_ITF_PROTOCOL_KEYBOARD,
                        sizeof(desc_hid_report), EPNUM_HID, CFG_TUD_HID_EP_BUFSIZE, 1),
-    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC, STR_CDC, EPNUM_CDC_NOTIF, 8,
-                       EPNUM_CDC_OUT, EPNUM_CDC_IN, CFG_TUD_CDC_EP_BUFSIZE),
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_CONSOLE, STR_CDC_CONSOLE, EPNUM_CDC_CONSOLE_NOTIF, 8,
+                       EPNUM_CDC_CONSOLE_OUT, EPNUM_CDC_CONSOLE_IN, CFG_TUD_CDC_EP_BUFSIZE),
+    TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_AUDIO, STR_CDC_AUDIO, EPNUM_CDC_AUDIO_NOTIF, 8,
+                       EPNUM_CDC_AUDIO_OUT, EPNUM_CDC_AUDIO_IN, CFG_TUD_CDC_EP_BUFSIZE),
 };
 
 const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
@@ -82,7 +91,8 @@ static const char *const string_desc[] = {
     [STR_PRODUCT]      = "Voice Keyboard",
     [STR_SERIAL]       = serial_str,
     [STR_HID]          = "Voice Keyboard",
-    [STR_CDC]          = "Voice Keyboard Console",
+    [STR_CDC_CONSOLE]  = "Voice Keyboard Console",
+    [STR_CDC_AUDIO]    = "Voice Keyboard Audio",
 };
 
 const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {

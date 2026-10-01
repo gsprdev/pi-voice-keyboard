@@ -7,6 +7,8 @@
 #
 # Usage:
 #   ./build.sh
+#   PICO_BOARD=pico2 ./build.sh       # Plain Pico 2 (no Wi-Fi), output in build-pico2/
+#   MIC_TIMING=standard ./build.sh    # ICS-43434 and other standard I2S mics
 #
 # Output: build/voice-keyboard.uf2
 
@@ -30,8 +32,11 @@ if [ ! -f "pico-sdk/pico_sdk_init.cmake" ]; then
 fi
 git -C pico-sdk submodule update --init lib/tinyusb lib/cyw43-driver lib/lwip
 
-cmake -B build
-cmake --build build -j "$(nproc)"
+# Each board gets its own build directory, since the board can't change after configuring
+BUILD_DIR=build${PICO_BOARD:+-$PICO_BOARD}
+
+cmake -B "$BUILD_DIR" ${PICO_BOARD:+-DPICO_BOARD=$PICO_BOARD} ${MIC_TIMING:+-DMIC_TIMING=$MIC_TIMING}
+cmake --build "$BUILD_DIR" -j "$(nproc)"
 
 echo
-echo "Built: $SCRIPT_DIR/build/voice-keyboard.uf2"
+echo "Built: $SCRIPT_DIR/$BUILD_DIR/voice-keyboard.uf2"
