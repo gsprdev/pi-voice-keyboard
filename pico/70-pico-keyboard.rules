@@ -1,0 +1,4 @@
+# Give the logged-in user access to the Pico keyboard's serial ports, without root or `dialout`.
+# 1d6b:0104 is the firmware (src/usb_descriptors.c); 2e8a is the RP2350 BOOTSEL ROM (picotool).
+SUBSYSTEM=="tty", ATTRS{idVendor}=="1d6b", ATTRS{idProduct}=="0104", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTRS{idVendor}=="2e8a", TAG+="uaccess"

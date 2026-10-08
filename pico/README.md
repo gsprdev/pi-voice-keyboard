@@ -40,6 +40,19 @@ MIC_TIMING=standard ./build.sh         # Standard I2S mic (ICS-43434 etc.) inste
 pico-sdk is a git submodule.
 `build.sh` fetches it and the libraries it needs automatically.
 
+## Serial permissions
+
+`/dev/ttyACM*` is `root:dialout` by default, so `stty` and `tools/capture.py` fail as a normal user.
+Install the udev rule once to grant the logged-in user access, with no root or group change needed:
+
+```sh
+sudo cp 70-pico-keyboard.rules /etc/udev/rules.d/
+sudo udevadm control --reload && sudo udevadm trigger
+```
+
+Then replug the Pico.
+Alternatively, `sudo usermod -aG dialout $USER` and log in again.
+
 ## Flash
 
 First time: hold BOOTSEL while plugging in the Pico, then copy the `.uf2` to the `RP2350` drive that appears.
