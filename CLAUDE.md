@@ -41,6 +41,7 @@ sudo systemctl enable --now type-ascii.service ptt.service
 ### Keyboard (Raspberry Pi Pico 2 W, in progress)
 ```sh
 cd pico
+cp src/secrets.h.example src/secrets.h   # Wi-Fi + service URL (git-ignored), required for Pico 2 W
 ./build.sh                        # Build firmware: build/voice-keyboard.uf2
 PICO_BOARD=pico2 ./build.sh       # Plain Pico 2 (no Wi-Fi): build-pico2/
 MIC_TIMING=standard ./build.sh    # Standard I2S mic instead of SPH0645
@@ -66,6 +67,8 @@ Service configuration (GPU host):
 - `PORT` - HTTP port (default: 8080)
 - `MODEL_PATH` - Path to Whisper model (default: `../speech-models/en_whisper_medium.ggml`)
 - `MODEL_LANGUAGE` - Transcription language (default: `en`)
+
+Pico configuration is compiled in from `pico/src/secrets.h`: `WIFI_SSID`, `WIFI_PASSWORD`, `SERVICE_URL`.
 
 Push-to-Talk configuration (`/etc/default/ptt` on Pi):
 - `PTT_SERVICE_URL` - Base URL to transcription service (required, e.g., `http://gpu-host.local:8080`)
@@ -97,6 +100,8 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
    - Composite USB device: HID boot keyboard + CDC console (logs) + CDC audio (raw PCM)
    - `src/typer.c` - Port of `type-ascii.py`, driven from the main loop
    - `src/mic.c`, `src/mic_i2s.pio` - I2S mic via PIO + DMA at 32kHz, decimated to 16kHz mono PCM
+   - `src/ptt.c` - Push-to-talk state machine (port of `ptt.py`), `src/feedback.c` LEDs/buzzer, `src/text.c` transcription cleanup
+   - `src/net.c`, `src/http.c`, `src/service.c` - Wi-Fi, minimal lwIP HTTP client, health checks + chunked streaming to `/transcribe`
    - `src/pins.h` - GPIO assignments
 
 ## Key Technical Details

@@ -8,8 +8,8 @@ See [PLAN.md](PLAN.md) for design decisions, pin assignments, and the staged roa
 ## Status
 
 1. **USB keyboard**: done
-2. **Microphone**: built, awaiting hardware verification
-3. Wi-Fi streaming
+2. **Microphone**: done
+3. **Wi-Fi streaming**: built, awaiting hardware verification
 4. Multiple servers
 5. USB networking
 6. Polish
@@ -19,15 +19,21 @@ See [PLAN.md](PLAN.md) for design decisions, pin assignments, and the staged roa
 The Pico appears as a composite device:
 
 - **HID boot keyboard**: the keyboard itself, same report format as the Pi gadget
-- **Console** (`/dev/ttyACM0` on Linux): logs, and text input for stage 1
+- **Console** (`/dev/ttyACM0` on Linux): logs, and text typed directly for testing
 - **Audio** (`/dev/ttyACM1`): raw 16 kHz mono 16-bit PCM while the port is open
 
 ## Build
 
+Wi-Fi settings are compiled in. Copy the example and fill it in (it's git-ignored):
+
+```sh
+cp src/secrets.h.example src/secrets.h
+```
+
 ```sh
 sudo apt install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
 ./build.sh                             # Pico 2 W: build/voice-keyboard.uf2
-PICO_BOARD=pico2 ./build.sh            # Plain Pico 2: build-pico2/voice-keyboard.uf2
+PICO_BOARD=pico2 ./build.sh            # Plain Pico 2, no networking: build-pico2/voice-keyboard.uf2
 MIC_TIMING=standard ./build.sh         # Standard I2S mic (ICS-43434 etc.) instead of SPH0645
 ```
 
@@ -47,7 +53,21 @@ stty -F /dev/ttyACM0 1200         # Reboots into BOOTSEL; the RP2350 drive reapp
 ## Wiring
 
 See the pin table in [PLAN.md](PLAN.md#pins).
-For stage 2 only the microphone is needed: SCK → GP10, WS → GP11, SD → GP12, SEL → GND, plus 3V3 and GND.
+
+- Microphone: SCK → GP10, WS → GP11, SD → GP12, SEL → GND, plus 3V3 and GND
+- Button: GP14 to GND (internal pull-up)
+- Recording LED: GP16, processing LED: GP17 (each through a resistor to GND)
+- Buzzer (passive): GP18 to GND
+
+## Use
+
+Hold the button and speak; release to have the transcription typed.
+
+- **Recording LED + beep:** recording, audio streaming to the service
+- **Processing LED:** waiting for the transcription
+- **Three beeps with the recording LED:** not ready (Wi-Fi down or service unavailable), or the upload failed
+
+Open the console (`/dev/ttyACM0`) to see why: it prints Wi-Fi and service status when opened, and logs each step.
 
 ## Try it
 

@@ -36,10 +36,15 @@ Memory (520 KB) rules out buffering a whole recording, so audio is streamed whil
 - **Transport:** HTTP POST to the existing `/transcribe` with `Transfer-Encoding: chunked`, sending a WAV header with placeholder sizes, then PCM as it's captured.
   No server change needed: `loadWAV` skips the 44-byte header and reads to EOF.
 - **Name resolution:** DHCP-provided or manually set DNS servers via lwIP; no mDNS.
-- **Server readiness, not failproofing:** server chosen at press time from health checks; no audio buffering or retry if a stream fails mid-recording, just an error beep.
-- **Health check failure aborts** recording (the Pi build beeps but records anyway).
-- **Text cleanup** (`clean_transcription` in `ptt.py`) is ported as simple substring stripping, or moved into the service.
-- **Configuration:** Wi-Fi credentials and service URL(s) compiled in from a git-ignored header at first; configuration over the serial console later.
+- **Server readiness, not failproofing:** health checks run in the background (every 10 s, 1 s timeout), so a press starts recording immediately instead of waiting on a check.
+  No audio buffering or retry if a stream fails mid-recording, just an error beep.
+  A 2 s send buffer rides out Wi-Fi hiccups; if it overflows, the recording is abandoned.
+- **Not ready aborts** recording (the Pi build beeps but records anyway).
+- **Start beep is not sent:** the first 150 ms after a press (the beep plus capture latency) are dropped rather than transcribed.
+- **Text cleanup** (`clean_transcription` in `ptt.py`) is ported to `src/text.c`, matching the Python regex behavior exactly.
+- **Configuration:** Wi-Fi credentials and service URL are compiled in from `src/secrets.h` (git-ignored, from `secrets.h.example`); configuration over the serial console later.
+- **Wi-Fi:** WPA2 (also joins WPA2/WPA3 mixed networks, not WPA3-only), power saving off since the device is USB powered.
+  lwIP runs in poll mode from the main loop, so there are no threads or locks.
 
 ## USB interfaces
 
@@ -72,8 +77,8 @@ Mic power: 3V3 (pin 36) and GND.
 ## Stages
 
 1. **USB keyboard** *(done, verified on hardware)*: console text is typed on the keyboard.
-2. **Microphone** *(built, awaiting hardware)*: capture to the audio port; `tools/capture.py` saves a WAV, reports levels, and can POST it to `/transcribe`.
-3. **Wi-Fi streaming**: button, LEDs, buzzer; health check on press; chunked upload while held; type the response.
+2. **Microphone** *(done, verified on hardware)*: capture to the audio port; `tools/capture.py` saves a WAV, reports levels, and can POST it to `/transcribe`.
+3. **Wi-Fi streaming** *(built, awaiting hardware)*: button, LEDs, buzzer; background health checks; chunked upload while held; type the response.
 4. **Multiple servers**: priority list with background health checks, ported from the `multi-backend` branch.
    Polling pauses while streaming.
 5. **USB networking**: USB host as a transcription server, from the `usb-networking` branch.
