@@ -42,13 +42,13 @@ Memory (520 KB) rules out buffering a whole recording, so audio is streamed whil
   So "ready" means a responsive server is accepting this recording, not just a TCP connection.
 - **Multiple servers, fail-through:** `SERVICE_URLS` lists servers in priority order; each press tries them in turn (1 s each to resolve, connect and get `100 Continue`) and records to the first that's ready.
   Refused connections and rejected uploads (a final response instead of `100 Continue`) fail through immediately.
-- **The beep is recorded and removed:** users speak after the beep, so it's always at the start of the audio; `text.c` strips it from the transcription, as on the Pi.
+- **The beep is recorded and removed:** users speak after the beep, so it's always at the start of the audio; the service strips it from the transcription.
   Releasing before the beep cancels quietly; if no server is ready, three error beeps.
 - **Readiness, not failproofing:** no audio buffering or retry if a stream fails mid-recording, just an error beep.
   A 2 s send buffer rides out Wi-Fi hiccups; if it overflows, the recording is abandoned.
 - **Overlapping transcriptions:** a new recording can start while earlier ones are still transcribing or being typed (up to 3 uploads in flight).
   Results are typed in recording order; the processing LED stays on until everything is typed.
-- **Text cleanup** (`clean_transcription` in `ptt.py`) is ported to `src/text.c`, matching the Python regex behavior exactly.
+- **Text cleanup** (`clean_transcription` in `ptt.py`) is done by the service; the Pico types the response as-is.
 - **Configuration:** Wi-Fi credentials and service URLs are compiled in from `src/secrets.h` (git-ignored, from `secrets.h.example`); configuration over the serial console later.
 - **Wi-Fi:** WPA2 (also joins WPA2/WPA3 mixed networks, not WPA3-only), power saving off since the device is USB powered.
   lwIP runs in poll mode from the main loop, so there are no threads or locks.

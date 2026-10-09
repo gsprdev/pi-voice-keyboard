@@ -39,7 +39,7 @@ bool service_send(session_t *s, const int16_t *samples, size_t count);
 void service_end(session_t *s);
 
 // The transcription, once SESSION_DONE. Valid until service_release.
-char *service_text(session_t *s);
+const char *service_text(session_t *s);
 
 // Abandon or finish with a session
 void service_release(session_t *s);

@@ -2,7 +2,7 @@
 //
 // A press opens a transcription session. Only once a server is accepting the
 // upload do the recording LED and beep come on, and audio starts streaming
-// from that moment: the beep is recorded too, and removed from the text.
+// from that moment: the beep is recorded too, and the service removes it.
 //
 // Earlier sessions keep going while the next is recorded. Their results are
 // typed in the order they were recorded; the processing LED stays on until
@@ -16,7 +16,6 @@
 #include "pins.h"
 #include "ptt.h"
 #include "service.h"
-#include "text.h"
 #include "typer.h"
 
 #define DEBOUNCE_MS 30
@@ -123,9 +122,8 @@ static void deliver_results(void) {
         session_t *s = pending[0];
         session_state_t state = service_state(s);
         if (state == SESSION_DONE) {
-            char *text = service_text(s);
+            const char *text = service_text(s); // already cleaned by the service
             printf("Transcription: %s\n", text);
-            text_clean(text);
             for (const char *c = text; *c; c++) {
                 if (!typer_putc(*c)) {
                     printf("Typing queue full, transcription truncated\n");

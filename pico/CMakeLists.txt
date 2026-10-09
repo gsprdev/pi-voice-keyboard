@@ -24,7 +24,6 @@ add_executable(voice-keyboard
     src/mic.c
     src/ptt.c
     src/service.c
-    src/text.c
     src/typer.c
     src/usb_descriptors.c
 )

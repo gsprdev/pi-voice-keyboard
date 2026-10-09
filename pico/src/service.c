@@ -194,9 +194,9 @@ void service_end(session_t *s) {
     s->state = SESSION_PROCESSING;
 }
 
-char *service_text(session_t *s) {
+const char *service_text(session_t *s) {
     // The response buffer belongs to the connection, which the session holds
-    return (char *)http_body(s->conn);
+    return http_body(s->conn);
 }
 
 void service_release(session_t *s) {
@@ -216,7 +216,7 @@ session_t *service_start(void) { return NULL; }
 session_state_t service_state(session_t *s) { (void)s; return SESSION_FAILED; }
 bool service_send(session_t *s, const int16_t *samples, size_t count) { (void)s; (void)samples; (void)count; return false; }
 void service_end(session_t *s) { (void)s; }
-char *service_text(session_t *s) { (void)s; return ""; }
+const char *service_text(session_t *s) { (void)s; return ""; }
 void service_release(session_t *s) { (void)s; }
 
 #endif
