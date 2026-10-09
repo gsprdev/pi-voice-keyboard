@@ -4,9 +4,11 @@
 // do the recording LED and beep come on, and audio starts streaming from that
 // moment: the beep is recorded too, and the service removes it.
 //
-// One upload at a time; the next recording can start while the previous
-// transcription is still being typed. The processing LED covers both waiting
-// for the transcription and typing it.
+// One transcription at a time. A press isn't acted on until the previous one
+// has been handed to the typing queue: holding the button simply waits until
+// then, and the beep says when to speak. Typing continues in the background,
+// so the next recording can overlap it. The processing LED covers both
+// waiting for the transcription and typing it.
 
 #include <stdio.h>
 
@@ -23,8 +25,9 @@
 static bool pressed;
 static bool raw_last;
 static absolute_time_t raw_changed;
+static bool armed = true; // released since the last press was acted on
 
-static bool holding; // this press started a transcription, still in its recording phase
+static bool holding;   // this press started a transcription, still in its recording phase
 static bool announced; // recording LED and beep given
 
 void ptt_init(void) {
@@ -33,19 +36,15 @@ void ptt_init(void) {
     gpio_pull_up(BUTTON_PIN); // button to ground: low when pressed
 }
 
-// Returns +1 on press, -1 on release, 0 otherwise
-static int button_edge(void) {
+// Debounced button state
+static void button_update(void) {
     bool raw = !gpio_get(BUTTON_PIN);
     if (raw != raw_last) {
         raw_last = raw;
         raw_changed = get_absolute_time();
-        return 0;
-    }
-    if (raw != pressed && absolute_time_diff_us(raw_changed, get_absolute_time()) >= DEBOUNCE_MS * 1000) {
+    } else if (absolute_time_diff_us(raw_changed, get_absolute_time()) >= DEBOUNCE_MS * 1000) {
         pressed = raw;
-        return pressed ? 1 : -1;
     }
-    return 0;
 }
 
 static void abandon(void) {
@@ -57,7 +56,7 @@ static void abandon(void) {
     }
 }
 
-static void on_press(void) {
+static void start(void) {
     printf("Button pressed - connecting\n");
     if (service_start()) {
         holding = true;
@@ -66,10 +65,7 @@ static void on_press(void) {
     }
 }
 
-static void on_release(void) {
-    if (!holding) {
-        return;
-    }
+static void release(void) {
     if (!announced) {
         // Released before a server was ready: nothing was recorded
         printf("Button released before recording started\n");
@@ -83,14 +79,8 @@ static void on_release(void) {
     feedback_recording(false);
 }
 
-void ptt_task(void) {
-    int edge = button_edge();
-    if (edge > 0) {
-        on_press();
-    } else if (edge < 0) {
-        on_release();
-    }
-
+// React to the transcription's progress
+static void track_session(void) {
     switch (service_state()) {
     case SESSION_RECORDING:
         if (!announced) {
@@ -101,6 +91,7 @@ void ptt_task(void) {
         break;
 
     case SESSION_DONE: {
+        // Hand off to the typing queue, freeing the way for the next press
         const char *text = service_text(); // already cleaned by the service
         printf("Transcription: %s\n", text);
         for (const char *c = text; *c; c++) {
@@ -121,6 +112,23 @@ void ptt_task(void) {
 
     default:
         break;
+    }
+}
+
+void ptt_task(void) {
+    track_session();
+
+    button_update();
+    if (!pressed) {
+        armed = true;
+        if (holding) {
+            release();
+        }
+    } else if (armed && service_state() == SESSION_IDLE) {
+        // A press is noticed only once the previous transcription is out of
+        // the way. One attempt per press, even if it fails while still held.
+        armed = false;
+        start();
     }
 
     feedback_processing(service_state() == SESSION_PROCESSING || typer_busy());

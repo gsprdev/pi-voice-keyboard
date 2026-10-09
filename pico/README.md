@@ -66,8 +66,8 @@ Hold the button, wait for the beep, and speak; release to have the transcription
 - **Recording LED + beep:** a server is accepting the recording; speak now.
   The servers in `SERVICE_URLS` are tried in order, up to 300 ms each, until one is ready.
 - **Processing LED:** waiting for the transcription, or typing it.
-  You can record the next one while it's typing.
-- **Three beeps with the recording LED:** no server ready (or Wi-Fi down), the previous transcription hasn't come back yet, or the upload failed
+  You can press for the next one any time: it starts once the previous transcription is back, and can overlap the typing.
+- **Three beeps with the recording LED:** no server ready (or Wi-Fi down), or the upload failed
 
 Open the console (`/dev/ttyACM0`) to see why: it prints Wi-Fi and service status when opened, and logs each step.
 

@@ -47,7 +47,8 @@ Memory (520 KB) rules out buffering a whole recording, so audio is streamed whil
 - **Readiness, not failproofing:** no audio buffering or retry if a stream fails mid-recording, just an error beep.
   A 2 s send buffer rides out Wi-Fi hiccups; if it overflows, the recording is abandoned.
 - **One upload at a time:** there's one microphone and the upload is streamed, so 0-1 uploads and 0-1 transcriptions being typed.
-  The next recording can start while the previous transcription is still being typed; a press while it's still awaiting the server gets the error beeps.
+  A press isn't acted on until the previous transcription has been handed to the typing queue: holding the button just waits, and the beep says when to speak.
+  Typing continues in the background, so the next recording can overlap it.
   The processing LED covers waiting for the transcription and typing it.
 - **Text cleanup** (`clean_transcription` in `ptt.py`) is done by the service; the Pico types the response as-is.
 - **Configuration:** Wi-Fi credentials and service URLs are compiled in from `src/secrets.h` (git-ignored, from `secrets.h.example`); configuration over the serial console later.
