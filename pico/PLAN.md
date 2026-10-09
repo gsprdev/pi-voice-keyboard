@@ -21,7 +21,8 @@ Memory (520 KB) rules out buffering a whole recording, so audio is streamed whil
 
 ## Decisions
 
-- **Board:** Pico 2 W. A plain Pico 2 runs every stage except Wi-Fi (`PICO_BOARD=pico2 ./build.sh`).
+- **Boards:** Pico 2 W, and the plain Pico 2 (`PICO_BOARD=pico2 ./build.sh`), which has no Wi-Fi.
+  The plain Pico 2 gets networking in stage 5, with the USB host as its only server.
 - **Language:** C with pico-sdk (submodule) and TinyUSB.
 - **Microphone:** SPH0645 (Adafruit 3421), the mic the Pi build uses.
   It is non-standard: data changes on the rising clock edge, so it is sampled on the falling edge (`MIC_TIMING=sph0645`, the default).
@@ -93,6 +94,7 @@ Mic power: 3V3 (pin 36) and GND.
 5. **USB networking**: USB host as a transcription server, from the `usb-networking` branch.
    CDC-NCM instead of ECM (native Windows support), host-side MAC `aa:bb:cc:dd:ee:01` so `host/host-setup.sh` works unchanged.
    Two lwIP interfaces (Wi-Fi + USB) sharing one stack; the USB host goes first in the server list, and fails through instantly when unplugged.
+   On the plain Pico 2, USB is the only interface: the networking build split becomes Wi-Fi vs. USB rather than network vs. none, with `http.c`/`service.c` on both boards.
 6. **Polish**: watchdog, configuration over serial, optional production build without CDC.
 
 The `usb-networking` branch is shelved until stage 5.
