@@ -9,8 +9,8 @@ See [PLAN.md](PLAN.md) for design decisions, pin assignments, and the staged roa
 
 1. **USB keyboard**: done
 2. **Microphone**: done
-3. **Wi-Fi streaming**: built, awaiting hardware verification
-4. Multiple servers
+3. **Wi-Fi streaming**: done
+4. **Multiple servers and readiness**: built, awaiting hardware verification
 5. USB networking
 6. Polish
 
@@ -61,11 +61,13 @@ See the pin table in [PLAN.md](PLAN.md#pins).
 
 ## Use
 
-Hold the button and speak; release to have the transcription typed.
+Hold the button, wait for the beep, and speak; release to have the transcription typed.
 
-- **Recording LED + beep:** recording, audio streaming to the service
-- **Processing LED:** waiting for the transcription
-- **Three beeps with the recording LED:** not ready (Wi-Fi down or service unavailable), or the upload failed
+- **Recording LED + beep:** a server is accepting the recording; speak now.
+  The servers in `SERVICE_URLS` are tried in order until one is ready, usually within a few tens of milliseconds.
+- **Processing LED:** transcriptions pending or still being typed.
+  You can record the next one meanwhile; results are typed in order.
+- **Three beeps with the recording LED:** no server ready (or Wi-Fi down), or the upload failed
 
 Open the console (`/dev/ttyACM0`) to see why: it prints Wi-Fi and service status when opened, and logs each step.
 

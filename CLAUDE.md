@@ -68,7 +68,7 @@ Service configuration (GPU host):
 - `MODEL_PATH` - Path to Whisper model (default: `../speech-models/en_whisper_medium.ggml`)
 - `MODEL_LANGUAGE` - Transcription language (default: `en`)
 
-Pico configuration is compiled in from `pico/src/secrets.h`: `WIFI_SSID`, `WIFI_PASSWORD`, `SERVICE_URL`.
+Pico configuration is compiled in from `pico/src/secrets.h`: `WIFI_SSID`, `WIFI_PASSWORD`, `SERVICE_URLS` (comma-separated, priority order).
 
 Push-to-Talk configuration (`/etc/default/ptt` on Pi):
 - `PTT_SERVICE_URL` - Base URL to transcription service (required, e.g., `http://gpu-host.local:8080`)
@@ -101,7 +101,7 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
    - `src/typer.c` - Port of `type-ascii.py`, driven from the main loop
    - `src/mic.c`, `src/mic_i2s.pio` - I2S mic via PIO + DMA at 32kHz, decimated to 16kHz mono PCM
    - `src/ptt.c` - Push-to-talk state machine (port of `ptt.py`), `src/feedback.c` LEDs/buzzer, `src/text.c` transcription cleanup
-   - `src/net.c`, `src/http.c`, `src/service.c` - Wi-Fi, minimal lwIP HTTP client, health checks + chunked streaming to `/transcribe`
+   - `src/net.c`, `src/http.c`, `src/service.c` - Wi-Fi, minimal lwIP HTTP client, transcription sessions: chunked streaming to `/transcribe`, readiness via `Expect: 100-continue`, fail-through across servers
    - `src/pins.h` - GPIO assignments
 
 ## Key Technical Details

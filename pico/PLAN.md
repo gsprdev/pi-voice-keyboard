@@ -36,13 +36,20 @@ Memory (520 KB) rules out buffering a whole recording, so audio is streamed whil
 - **Transport:** HTTP POST to the existing `/transcribe` with `Transfer-Encoding: chunked`, sending a WAV header with placeholder sizes, then PCM as it's captured.
   No server change needed: `loadWAV` skips the 44-byte header and reads to EOF.
 - **Name resolution:** DHCP-provided or manually set DNS servers via lwIP; no mDNS.
-- **Server readiness, not failproofing:** health checks run in the background (every 10 s, 1 s timeout), so a press starts recording immediately instead of waiting on a check.
-  No audio buffering or retry if a stream fails mid-recording, just an error beep.
+- **Starting the upload is the readiness check.** There are no background health checks.
+  A press opens the upload with `Expect: 100-continue`; Go's server answers `100 Continue` only when the `/transcribe` handler starts reading the body.
+  Only then do the recording LED and beep come on, and audio streams from that moment.
+  So "ready" means a responsive server is accepting this recording, not just a TCP connection.
+- **Multiple servers, fail-through:** `SERVICE_URLS` lists servers in priority order; each press tries them in turn (1 s each to resolve, connect and get `100 Continue`) and records to the first that's ready.
+  Refused connections and rejected uploads (a final response instead of `100 Continue`) fail through immediately.
+- **The beep is recorded and removed:** users speak after the beep, so it's always at the start of the audio; `text.c` strips it from the transcription, as on the Pi.
+  Releasing before the beep cancels quietly; if no server is ready, three error beeps.
+- **Readiness, not failproofing:** no audio buffering or retry if a stream fails mid-recording, just an error beep.
   A 2 s send buffer rides out Wi-Fi hiccups; if it overflows, the recording is abandoned.
-- **Not ready aborts** recording (the Pi build beeps but records anyway).
-- **Start beep is not sent:** the first 150 ms after a press (the beep plus capture latency) are dropped rather than transcribed.
+- **Overlapping transcriptions:** a new recording can start while earlier ones are still transcribing or being typed (up to 3 uploads in flight).
+  Results are typed in recording order; the processing LED stays on until everything is typed.
 - **Text cleanup** (`clean_transcription` in `ptt.py`) is ported to `src/text.c`, matching the Python regex behavior exactly.
-- **Configuration:** Wi-Fi credentials and service URL are compiled in from `src/secrets.h` (git-ignored, from `secrets.h.example`); configuration over the serial console later.
+- **Configuration:** Wi-Fi credentials and service URLs are compiled in from `src/secrets.h` (git-ignored, from `secrets.h.example`); configuration over the serial console later.
 - **Wi-Fi:** WPA2 (also joins WPA2/WPA3 mixed networks, not WPA3-only), power saving off since the device is USB powered.
   lwIP runs in poll mode from the main loop, so there are no threads or locks.
 
@@ -78,15 +85,15 @@ Mic power: 3V3 (pin 36) and GND.
 
 1. **USB keyboard** *(done, verified on hardware)*: console text is typed on the keyboard.
 2. **Microphone** *(done, verified on hardware)*: capture to the audio port; `tools/capture.py` saves a WAV, reports levels, and can POST it to `/transcribe`.
-3. **Wi-Fi streaming** *(built, awaiting hardware)*: button, LEDs, buzzer; background health checks; chunked upload while held; type the response.
-4. **Multiple servers**: priority list with background health checks, ported from the `multi-backend` branch.
-   Polling pauses while streaming.
+3. **Wi-Fi streaming** *(done, verified on hardware)*: button, LEDs, buzzer; chunked upload while held; type the response.
+4. **Multiple servers and readiness** *(built, awaiting hardware)*: readiness from the upload itself (`100 Continue`), fail-through across `SERVICE_URLS`, overlapping transcriptions.
+   Replaces the `multi-backend` branch's background health checks, which streaming made unnecessary.
 5. **USB networking**: USB host as a transcription server, from the `usb-networking` branch.
    CDC-NCM instead of ECM (native Windows support), host-side MAC `aa:bb:cc:dd:ee:01` so `host/host-setup.sh` works unchanged.
-   Two lwIP interfaces (Wi-Fi + USB) sharing one stack; USB link-up triggers an immediate health check.
+   Two lwIP interfaces (Wi-Fi + USB) sharing one stack; the USB host goes first in the server list, and fails through instantly when unplugged.
 6. **Polish**: watchdog, configuration over serial, optional production build without CDC.
 
-The `multi-backend` and `usb-networking` branches are shelved until stage 3 is working.
+The `usb-networking` branch is shelved until stage 5.
 
 ## Verifying stage 2
 

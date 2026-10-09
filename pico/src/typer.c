@@ -40,6 +40,10 @@ static bool lookup(char ch, uint8_t *mod, uint8_t *keycode) {
     return true;
 }
 
+bool typer_busy(void) {
+    return head != tail || state != IDLE;
+}
+
 void typer_task(void) {
     if (!tud_mounted()) {
         return;
