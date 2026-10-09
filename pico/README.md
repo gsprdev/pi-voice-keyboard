@@ -64,10 +64,10 @@ See the pin table in [PLAN.md](PLAN.md#pins).
 Hold the button, wait for the beep, and speak; release to have the transcription typed.
 
 - **Recording LED + beep:** a server is accepting the recording; speak now.
-  The servers in `SERVICE_URLS` are tried in order until one is ready, usually within a few tens of milliseconds.
-- **Processing LED:** transcriptions pending or still being typed.
-  You can record the next one meanwhile; results are typed in order.
-- **Three beeps with the recording LED:** no server ready (or Wi-Fi down), or the upload failed
+  The servers in `SERVICE_URLS` are tried in order, up to 300 ms each, until one is ready.
+- **Processing LED:** waiting for the transcription, or typing it.
+  You can record the next one while it's typing.
+- **Three beeps with the recording LED:** no server ready (or Wi-Fi down), the previous transcription hasn't come back yet, or the upload failed
 
 Open the console (`/dev/ttyACM0`) to see why: it prints Wi-Fi and service status when opened, and logs each step.
 

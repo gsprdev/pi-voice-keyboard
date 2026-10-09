@@ -10,8 +10,8 @@
 #define MEM_LIBC_MALLOC             0
 #define MEM_ALIGNMENT               4
 
-// Heap holds TCP send data (copied in): room for several connections' TCP_SND_BUF
-#define MEM_SIZE                    48000
+// Heap holds TCP send data (copied in), so it must exceed TCP_SND_BUF
+#define MEM_SIZE                    32000
 #define MEMP_NUM_TCP_SEG            32
 #define MEMP_NUM_ARP_QUEUE          10
 #define PBUF_POOL_SIZE              24

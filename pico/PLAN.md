@@ -40,14 +40,15 @@ Memory (520 KB) rules out buffering a whole recording, so audio is streamed whil
   A press opens the upload with `Expect: 100-continue`; Go's server answers `100 Continue` only when the `/transcribe` handler starts reading the body.
   Only then do the recording LED and beep come on, and audio streams from that moment.
   So "ready" means a responsive server is accepting this recording, not just a TCP connection.
-- **Multiple servers, fail-through:** `SERVICE_URLS` lists servers in priority order; each press tries them in turn (1 s each to resolve, connect and get `100 Continue`) and records to the first that's ready.
+- **Multiple servers, fail-through:** `SERVICE_URLS` lists servers in priority order; each press tries them in turn (300 ms each to resolve, connect and get `100 Continue`) and records to the first that's ready.
   Refused connections and rejected uploads (a final response instead of `100 Continue`) fail through immediately.
 - **The beep is recorded and removed:** users speak after the beep, so it's always at the start of the audio; the service strips it from the transcription.
   Releasing before the beep cancels quietly; if no server is ready, three error beeps.
 - **Readiness, not failproofing:** no audio buffering or retry if a stream fails mid-recording, just an error beep.
   A 2 s send buffer rides out Wi-Fi hiccups; if it overflows, the recording is abandoned.
-- **Overlapping transcriptions:** a new recording can start while earlier ones are still transcribing or being typed (up to 3 uploads in flight).
-  Results are typed in recording order; the processing LED stays on until everything is typed.
+- **One upload at a time:** there's one microphone and the upload is streamed, so 0-1 uploads and 0-1 transcriptions being typed.
+  The next recording can start while the previous transcription is still being typed; a press while it's still awaiting the server gets the error beeps.
+  The processing LED covers waiting for the transcription and typing it.
 - **Text cleanup** (`clean_transcription` in `ptt.py`) is done by the service; the Pico types the response as-is.
 - **Configuration:** Wi-Fi credentials and service URLs are compiled in from `src/secrets.h` (git-ignored, from `secrets.h.example`); configuration over the serial console later.
 - **Wi-Fi:** WPA2 (also joins WPA2/WPA3 mixed networks, not WPA3-only), power saving off since the device is USB powered.
@@ -86,7 +87,7 @@ Mic power: 3V3 (pin 36) and GND.
 1. **USB keyboard** *(done, verified on hardware)*: console text is typed on the keyboard.
 2. **Microphone** *(done, verified on hardware)*: capture to the audio port; `tools/capture.py` saves a WAV, reports levels, and can POST it to `/transcribe`.
 3. **Wi-Fi streaming** *(done, verified on hardware)*: button, LEDs, buzzer; chunked upload while held; type the response.
-4. **Multiple servers and readiness** *(built, awaiting hardware)*: readiness from the upload itself (`100 Continue`), fail-through across `SERVICE_URLS`, overlapping transcriptions.
+4. **Multiple servers and readiness** *(built, awaiting hardware)*: readiness from the upload itself (`100 Continue`), fail-through across `SERVICE_URLS`.
    Replaces the `multi-backend` branch's background health checks, which streaming made unnecessary.
 5. **USB networking**: USB host as a transcription server, from the `usb-networking` branch.
    CDC-NCM instead of ECM (native Windows support), host-side MAC `aa:bb:cc:dd:ee:01` so `host/host-setup.sh` works unchanged.

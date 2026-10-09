@@ -1,12 +1,12 @@
 // Push-to-talk. Port of pi/ptt.py, with readiness tied to the upload itself.
 //
-// A press opens a transcription session. Only once a server is accepting the
-// upload do the recording LED and beep come on, and audio starts streaming
-// from that moment: the beep is recorded too, and the service removes it.
+// A press starts a transcription. Only once a server is accepting the upload
+// do the recording LED and beep come on, and audio starts streaming from that
+// moment: the beep is recorded too, and the service removes it.
 //
-// Earlier sessions keep going while the next is recorded. Their results are
-// typed in the order they were recorded; the processing LED stays on until
-// everything has been typed.
+// One upload at a time; the next recording can start while the previous
+// transcription is still being typed. The processing LED covers both waiting
+// for the transcription and typing it.
 
 #include <stdio.h>
 
@@ -19,19 +19,13 @@
 #include "typer.h"
 
 #define DEBOUNCE_MS 30
-#define MAX_PENDING 4
 
 static bool pressed;
 static bool raw_last;
 static absolute_time_t raw_changed;
 
-// The session for the press in progress (connecting or recording)
-static session_t *current;
-static bool announced; // recording LED and beep given for current
-
-// Finished recordings awaiting their transcription, oldest first
-static session_t *pending[MAX_PENDING];
-static int num_pending;
+static bool holding; // this press started a transcription, still in its recording phase
+static bool announced; // recording LED and beep given
 
 void ptt_init(void) {
     gpio_init(BUTTON_PIN);
@@ -54,9 +48,9 @@ static int button_edge(void) {
     return 0;
 }
 
-static void drop_current(void) {
-    service_release(current);
-    current = NULL;
+static void abandon(void) {
+    service_release();
+    holding = false;
     if (announced) {
         feedback_recording(false);
         announced = false;
@@ -65,83 +59,28 @@ static void drop_current(void) {
 
 static void on_press(void) {
     printf("Button pressed - connecting\n");
-    if (num_pending == MAX_PENDING) {
-        printf("Too many transcriptions in progress\n");
-        feedback_error();
-        return;
-    }
-    current = service_start();
-    if (!current) {
+    if (service_start()) {
+        holding = true;
+    } else {
         feedback_error();
     }
 }
 
 static void on_release(void) {
-    if (!current) {
+    if (!holding) {
         return;
     }
     if (!announced) {
-        // Released before the server was ready: nothing was recorded
+        // Released before a server was ready: nothing was recorded
         printf("Button released before recording started\n");
-        drop_current();
+        abandon();
         return;
     }
     printf("Button released - transcribing\n");
-    service_end(current);
-    pending[num_pending++] = current;
-    current = NULL;
+    service_end();
+    holding = false;
     announced = false;
     feedback_recording(false);
-}
-
-static void track_current(void) {
-    if (!current) {
-        return;
-    }
-    switch (service_state(current)) {
-    case SESSION_RECORDING:
-        if (!announced) {
-            feedback_recording(true);
-            feedback_beep();
-            announced = true;
-        }
-        break;
-    case SESSION_FAILED:
-        printf("%s\n", announced ? "Recording failed" : "No transcription service available");
-        drop_current();
-        feedback_error();
-        break;
-    default:
-        break;
-    }
-}
-
-// Type finished transcriptions in order; a slow one holds back later ones
-static void deliver_results(void) {
-    while (num_pending > 0) {
-        session_t *s = pending[0];
-        session_state_t state = service_state(s);
-        if (state == SESSION_DONE) {
-            const char *text = service_text(s); // already cleaned by the service
-            printf("Transcription: %s\n", text);
-            for (const char *c = text; *c; c++) {
-                if (!typer_putc(*c)) {
-                    printf("Typing queue full, transcription truncated\n");
-                    break;
-                }
-            }
-        } else if (state == SESSION_FAILED) {
-            printf("Transcription failed\n");
-            feedback_error();
-        } else {
-            return;
-        }
-        service_release(s);
-        num_pending--;
-        for (int i = 0; i < num_pending; i++) {
-            pending[i] = pending[i + 1];
-        }
-    }
 }
 
 void ptt_task(void) {
@@ -152,18 +91,48 @@ void ptt_task(void) {
         on_release();
     }
 
-    track_current();
-    deliver_results();
-    feedback_processing(num_pending > 0 || typer_busy());
+    switch (service_state()) {
+    case SESSION_RECORDING:
+        if (!announced) {
+            feedback_recording(true);
+            feedback_beep();
+            announced = true;
+        }
+        break;
+
+    case SESSION_DONE: {
+        const char *text = service_text(); // already cleaned by the service
+        printf("Transcription: %s\n", text);
+        for (const char *c = text; *c; c++) {
+            if (!typer_putc(*c)) {
+                printf("Typing queue full, transcription truncated\n");
+                break;
+            }
+        }
+        service_release();
+        break;
+    }
+
+    case SESSION_FAILED:
+        printf("%s\n", holding && !announced ? "No transcription service available" : "Transcription failed");
+        abandon();
+        feedback_error();
+        break;
+
+    default:
+        break;
+    }
+
+    feedback_processing(service_state() == SESSION_PROCESSING || typer_busy());
 }
 
 void ptt_audio(const int16_t *samples, size_t count) {
-    if (!current || !announced) {
+    if (!holding || !announced) {
         return;
     }
-    if (!service_send(current, samples, count)) {
+    if (!service_send(samples, count)) {
         printf("Network not keeping up, abandoning recording\n");
-        drop_current();
+        abandon();
         feedback_error();
     }
 }

@@ -30,7 +30,7 @@ typedef enum {
     STEP_FAILED,
 } step_t;
 
-struct http_conn {
+typedef struct {
     step_t step;
     struct tcp_pcb *pcb;
     ip_addr_t addr;
@@ -50,9 +50,9 @@ struct http_conn {
     size_t resp_len;
     int status_code;
     const char *body;
-};
+} http_conn_t;
 
-static http_conn_t conns[HTTP_MAX_CONNS];
+static http_conn_t conn;
 
 static void detach(http_conn_t *c) {
     if (c->pcb) {
@@ -239,17 +239,11 @@ static void on_dns(const char *name, const ip_addr_t *found, void *arg) {
     connect_to_addr(c);
 }
 
-http_conn_t *http_open(const char *host, uint16_t port, const char *path, const char *content_type,
-                       uint32_t ready_timeout_ms, uint32_t response_timeout_ms) {
-    http_conn_t *c = NULL;
-    for (int i = 0; i < HTTP_MAX_CONNS; i++) {
-        if (conns[i].step == STEP_FREE) {
-            c = &conns[i];
-            break;
-        }
-    }
-    if (!c) {
-        return NULL;
+bool http_open(const char *host, uint16_t port, const char *path, const char *content_type,
+               uint32_t ready_timeout_ms, uint32_t response_timeout_ms) {
+    http_conn_t *c = &conn;
+    if (c->step != STEP_FREE) {
+        return false;
     }
 
     snprintf(c->host, sizeof(c->host), "%s", host);
@@ -274,7 +268,7 @@ http_conn_t *http_open(const char *host, uint16_t port, const char *path, const 
                      path, host, port, content_type);
     if (n < 0 || (size_t)n >= sizeof(c->header)) {
         c->step = STEP_FAILED;
-        return c;
+        return true;
     }
 
     c->deadline = make_timeout_time_ms(ready_timeout_ms);
@@ -285,14 +279,16 @@ http_conn_t *http_open(const char *host, uint16_t port, const char *path, const 
     } else if (err != ERR_INPROGRESS) {
         fail(c, "could not resolve host");
     }
-    return c;
+    return true;
 }
 
-bool http_ready(http_conn_t *c) {
+bool http_ready(void) {
+    http_conn_t *c = &conn;
     return c->step == STEP_STREAMING || c->step == STEP_AWAITING;
 }
 
-bool http_write(http_conn_t *c, const void *data, size_t len) {
+bool http_write(const void *data, size_t len) {
+    http_conn_t *c = &conn;
     if (TX_RING_SIZE - (c->tx_head - c->tx_tail) < len) {
         return false;
     }
@@ -303,11 +299,13 @@ bool http_write(http_conn_t *c, const void *data, size_t len) {
     return true;
 }
 
-void http_finish(http_conn_t *c) {
+void http_finish(void) {
+    http_conn_t *c = &conn;
     c->finishing = true;
 }
 
-void http_close(http_conn_t *c) {
+void http_close(void) {
+    http_conn_t *c = &conn;
     detach(c);
     c->step = STEP_FREE;
 }
@@ -411,12 +409,11 @@ static void conn_task(http_conn_t *c) {
 }
 
 void http_task(void) {
-    for (int i = 0; i < HTTP_MAX_CONNS; i++) {
-        conn_task(&conns[i]);
-    }
+    conn_task(&conn);
 }
 
-http_state_t http_state(http_conn_t *c) {
+http_state_t http_state(void) {
+    http_conn_t *c = &conn;
     switch (c->step) {
     case STEP_DONE:   return HTTP_DONE;
     case STEP_FAILED: return HTTP_FAILED;
@@ -424,10 +421,12 @@ http_state_t http_state(http_conn_t *c) {
     }
 }
 
-int http_status_code(http_conn_t *c) {
+int http_status_code(void) {
+    http_conn_t *c = &conn;
     return c->status_code;
 }
 
-const char *http_body(http_conn_t *c) {
+const char *http_body(void) {
+    http_conn_t *c = &conn;
     return c->body;
 }

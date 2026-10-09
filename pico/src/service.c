@@ -1,8 +1,8 @@
-// Transcription sessions over streamed uploads to POST /transcribe.
+// Transcription over streamed uploads to POST /transcribe.
 //
 // There are no background health checks: opening the upload is the check.
-// Each session tries the configured servers in priority order and settles on
-// the first that answers "100 Continue", i.e. whose handler is reading the body.
+// Servers are tried in priority order; the first to answer "100 Continue"
+// (its handler is reading the body) within READY_TIMEOUT_MS gets the recording.
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -21,16 +21,9 @@
 #define SERVICE_URLS SERVICE_URL
 #endif
 
-#define MAX_SERVERS      4
-#define READY_TIMEOUT_MS 1000  // per server: resolve, connect, 100 Continue
+#define MAX_SERVERS         4
+#define READY_TIMEOUT_MS    300   // per server: resolve, connect, 100 Continue
 #define RESPONSE_TIMEOUT_MS 60000
-
-struct session {
-    bool in_use;
-    session_state_t state;
-    http_conn_t *conn;
-    int server;
-};
 
 static struct {
     char host[64];
@@ -38,7 +31,8 @@ static struct {
 } servers[MAX_SERVERS];
 static int num_servers;
 
-static session_t sessions[HTTP_MAX_CONNS];
+static session_state_t state = SESSION_IDLE;
+static int server; // index of the server being tried or used
 
 // Parse "http://host[:port][/]" entries separated by commas
 static void parse_urls(const char *urls) {
@@ -83,29 +77,25 @@ void service_report(void) {
     }
 }
 
-// Open the upload on the session's current server, or the next ones after it
-static void try_servers(session_t *s) {
-    for (; s->server < num_servers; s->server++) {
-        s->conn = http_open(servers[s->server].host, servers[s->server].port, "/transcribe",
-                            "audio/wav", READY_TIMEOUT_MS, RESPONSE_TIMEOUT_MS);
-        if (s->conn) {
-            return;
-        }
-    }
-    s->state = SESSION_FAILED;
-}
-
-static void session_task(session_t *s) {
-    if (!s->in_use || !s->conn) {
+// Open the upload on the current server
+static void try_server(void) {
+    if (server >= num_servers) {
+        state = SESSION_FAILED;
         return;
     }
-    http_state_t state = http_state(s->conn);
+    http_open(servers[server].host, servers[server].port, "/transcribe", "audio/wav",
+              READY_TIMEOUT_MS, RESPONSE_TIMEOUT_MS);
+}
 
-    switch (s->state) {
+void service_task(void) {
+    http_task();
+    http_state_t http = http_state();
+
+    switch (state) {
     case SESSION_CONNECTING:
-        if (http_ready(s->conn)) {
-            printf("Service: recording to %s:%u\n", servers[s->server].host, servers[s->server].port);
-            s->state = SESSION_RECORDING;
+        if (http_ready()) {
+            printf("Service: recording to %s:%u\n", servers[server].host, servers[server].port);
+            state = SESSION_RECORDING;
 
             // The service skips the 44-byte header and reads samples to the end
             // of the body, so the sizes (unknown while streaming) are left at max.
@@ -120,32 +110,31 @@ static void session_task(session_t *s) {
                 16, 0,                   // bits per sample
                 'd', 'a', 't', 'a', 0xff, 0xff, 0xff, 0xff,
             };
-            http_write(s->conn, wav_header, sizeof(wav_header));
-        } else if (state != HTTP_BUSY) {
-            // Refused, unreachable, too slow, or rejected the request: next server
-            printf("Service: %s:%u not ready\n", servers[s->server].host, servers[s->server].port);
-            http_close(s->conn);
-            s->conn = NULL;
-            s->server++;
-            try_servers(s);
+            http_write(wav_header, sizeof(wav_header));
+        } else if (http != HTTP_BUSY) {
+            // Refused, unreachable, too slow, or rejected the upload: next server
+            printf("Service: %s:%u not ready\n", servers[server].host, servers[server].port);
+            http_close();
+            server++;
+            try_server();
         }
         break;
 
     case SESSION_RECORDING:
-        if (state != HTTP_BUSY) {
+        if (http != HTTP_BUSY) {
             printf("Service: upload ended early\n");
-            s->state = SESSION_FAILED;
+            state = SESSION_FAILED;
         }
         break;
 
     case SESSION_PROCESSING:
-        if (state == HTTP_DONE && http_status_code(s->conn) == 200) {
-            s->state = SESSION_DONE;
-        } else if (state == HTTP_DONE) {
-            printf("Service: /transcribe returned %d: %s\n", http_status_code(s->conn), http_body(s->conn));
-            s->state = SESSION_FAILED;
-        } else if (state == HTTP_FAILED) {
-            s->state = SESSION_FAILED;
+        if (http == HTTP_DONE && http_status_code() == 200) {
+            state = SESSION_DONE;
+        } else if (http == HTTP_DONE) {
+            printf("Service: /transcribe returned %d: %s\n", http_status_code(), http_body());
+            state = SESSION_FAILED;
+        } else if (http == HTTP_FAILED) {
+            state = SESSION_FAILED;
         }
         break;
 
@@ -154,69 +143,53 @@ static void session_task(session_t *s) {
     }
 }
 
-void service_task(void) {
-    http_task();
-    for (int i = 0; i < HTTP_MAX_CONNS; i++) {
-        session_task(&sessions[i]);
+bool service_start(void) {
+    if (state != SESSION_IDLE) {
+        printf("Service: previous transcription still in progress\n");
+        return false;
     }
-}
-
-session_t *service_start(void) {
     if (!net_up()) {
         printf("Service: Wi-Fi not connected\n");
-        return NULL;
+        return false;
     }
-    for (int i = 0; i < HTTP_MAX_CONNS; i++) {
-        session_t *s = &sessions[i];
-        if (!s->in_use) {
-            s->in_use = true;
-            s->state = SESSION_CONNECTING;
-            s->conn = NULL;
-            s->server = 0;
-            try_servers(s);
-            return s;
-        }
-    }
-    printf("Service: too many transcriptions in progress\n");
-    return NULL;
+    state = SESSION_CONNECTING;
+    server = 0;
+    try_server();
+    return true;
 }
 
-session_state_t service_state(session_t *s) {
-    return s->state;
+session_state_t service_state(void) {
+    return state;
 }
 
-bool service_send(session_t *s, const int16_t *samples, size_t count) {
-    return http_write(s->conn, samples, count * sizeof(samples[0]));
+bool service_send(const int16_t *samples, size_t count) {
+    return http_write(samples, count * sizeof(samples[0]));
 }
 
-void service_end(session_t *s) {
-    http_finish(s->conn);
-    s->state = SESSION_PROCESSING;
+void service_end(void) {
+    http_finish();
+    state = SESSION_PROCESSING;
 }
 
-const char *service_text(session_t *s) {
-    // The response buffer belongs to the connection, which the session holds
-    return http_body(s->conn);
+const char *service_text(void) {
+    return http_body();
 }
 
-void service_release(session_t *s) {
-    if (s->conn) {
-        http_close(s->conn);
-        s->conn = NULL;
-    }
-    s->in_use = false;
+void service_release(void) {
+    http_close();
+    state = SESSION_IDLE;
 }
 
-#else // Board without Wi-Fi: no sessions
+#else // Board without Wi-Fi: transcription never starts
 
 void service_init(void) {}
 void service_task(void) {}
 void service_report(void) { printf("Service: no Wi-Fi on this board\n"); }
-session_t *service_start(void) { return NULL; }
-session_state_t service_state(session_t *s) { (void)s; return SESSION_FAILED; }
-bool service_send(session_t *s, const int16_t *samples, size_t count) { (void)s; (void)samples; (void)count; return false; }
-void service_end(session_t *s) { (void)s; }
-const char *service_text(session_t *s) { (void)s; return ""; }
-void service_release(session_t *s) { (void)s; }
+bool service_start(void) { return false; }
+session_state_t service_state(void) { return SESSION_IDLE; }
+bool service_send(const int16_t *samples, size_t count) { (void)samples; (void)count; return false; }
+void service_end(void) {}
+const char *service_text(void) { return ""; }
+void service_release(void) {}
 
 #endif
