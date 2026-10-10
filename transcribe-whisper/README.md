@@ -71,3 +71,41 @@ On the GPU-bearing Linux host:
 5. Edit `./transcription.service` for your paths, then install as a systemd service
 
 This sytem will need to exist on the same local network as the Pi-based keyboard.
+
+## Debug capture
+
+To investigate mistranscriptions, the service can keep the most recent requests on disk.
+It is off by default; set `DEBUG_CAPTURE_DIR` to turn it on:
+
+```sh
+DEBUG_CAPTURE_DIR=~/transcribe-captures DEBUG_CAPTURE_KEEP=50 ./run.sh
+```
+
+- `DEBUG_CAPTURE_DIR` - Directory for captures (created if missing). Unset disables capture.
+- `DEBUG_CAPTURE_KEEP` - Number of most recent captures to keep (default: 50). Older ones are deleted after each request.
+
+Each request gets its own directory, named so they sort by time:
+
+```
+<DEBUG_CAPTURE_DIR>/20261010-045829.020-1791607109020791115/
+  audio.wav        exactly as uploaded
+  transcript.txt   text returned to the client (successful requests only)
+  meta.json        client, headers, WAV format, model, language, timings, segments with token probabilities, status and response
+```
+
+Failed requests (for example, unreadable WAV) are captured too, without `transcript.txt`.
+Pruning only touches directories with that naming pattern, so other files in the directory are left alone.
+
+Captures are recordings of whatever was said, so keep the directory private (it is created with mode 0700) and turn capture off when done.
+
+To try a capture against another model or parameters, use whisper.cpp's CLI directly:
+
+```sh
+../whisper.cpp/build/bin/whisper-cli -m ../speech-models/en_whisper_large.ggml -f <capture>/audio.wav
+```
+
+or replay it against a running service:
+
+```sh
+curl -H 'Content-Type: audio/wav' --data-binary @<capture>/audio.wav http://localhost:8080/transcribe
+```
