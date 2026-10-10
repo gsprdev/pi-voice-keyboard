@@ -1,0 +1,47 @@
+; I2S receiver, clock master: drives SCK and WS, reads SD.
+; Side-set bit 0 is SCK, bit 1 is WS (so the pins must be consecutive).
+; 32 SCK cycles per channel, 2 PIO cycles per SCK cycle.
+; Autopush every 32 bits gives one FIFO word per channel slot: left, right, left, ...
+;
+; WS changes alongside a falling SCK edge, one bit before each channel's MSB.
+; The programs differ only in which SCK edge the data is sampled on.
+
+; Standard (Philips) I2S: data changes on the falling edge, sample on the rising edge.
+.program i2s_in_rising
+.side_set 2
+.wrap_target
+    set x, 29       side 0b00   ; left bit 0, SCK low
+left_bits:
+    in pins, 1      side 0b01   ; sample on rising edge
+    jmp x--, left_bits  side 0b00
+    in pins, 1      side 0b01   ; left bit 30
+    nop             side 0b10   ; left bit 31, WS -> right
+    in pins, 1      side 0b11
+    set x, 29       side 0b10   ; right bit 0
+right_bits:
+    in pins, 1      side 0b11
+    jmp x--, right_bits side 0b10
+    in pins, 1      side 0b11   ; right bit 30
+    nop             side 0b00   ; right bit 31, WS -> left
+    in pins, 1      side 0b01
+.wrap
+
+; SPH0645: data changes on the rising edge, sample on the falling edge.
+.program i2s_in_falling
+.side_set 2
+.wrap_target
+    in pins, 1      side 0b00   ; left bit 0, sample on falling edge
+    set x, 29       side 0b01
+left_bits:
+    in pins, 1      side 0b00
+    jmp x--, left_bits  side 0b01
+    in pins, 1      side 0b10   ; left bit 31, WS -> right
+    nop             side 0b11
+    in pins, 1      side 0b10   ; right bit 0
+    set x, 29       side 0b11
+right_bits:
+    in pins, 1      side 0b10
+    jmp x--, right_bits side 0b11
+    in pins, 1      side 0b00   ; right bit 31, WS -> left
+    nop             side 0b01
+.wrap

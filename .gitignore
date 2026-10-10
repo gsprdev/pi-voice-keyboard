@@ -3,6 +3,7 @@
 
 # Build outputs and dependencies
 transcribe-whisper/bin/
+pico/build*/
 
 # Downloaded models
 speech-models/
@@ -49,3 +50,6 @@ __pycache__/
 *.pyo
 *.egg-info/
 .venv/
+
+# Pico Wi-Fi credentials
+pico/src/secrets.h
