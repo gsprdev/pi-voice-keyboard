@@ -10,15 +10,21 @@
 
 #include "service.h"
 
-#if VOICEKB_NETWORK
-
 #include "http.h"
 #include "net.h"
+#include "usbnet.h"
+
+// Required with Wi-Fi; without it, the USB host is the only server
+#if __has_include("secrets.h")
 #include "secrets.h"
+#endif
 
 // Older secrets.h files name a single server
-#ifndef SERVICE_URLS
+#if !defined(SERVICE_URLS) && defined(SERVICE_URL)
 #define SERVICE_URLS SERVICE_URL
+#endif
+#ifndef SERVICE_URLS
+#define SERVICE_URLS "http://" USBNET_HOST_IP ":8080"
 #endif
 
 #define MAX_SERVERS         4
@@ -149,7 +155,7 @@ bool service_start(void) {
         return false;
     }
     if (!net_up()) {
-        printf("Service: Wi-Fi not connected\n");
+        printf("Service: no network\n");
         return false;
     }
     state = SESSION_CONNECTING;
@@ -179,17 +185,3 @@ void service_release(void) {
     http_close();
     state = SESSION_IDLE;
 }
-
-#else // Board without Wi-Fi: transcription never starts
-
-void service_init(void) {}
-void service_task(void) {}
-void service_report(void) { printf("Service: no Wi-Fi on this board\n"); }
-bool service_start(void) { return false; }
-session_state_t service_state(void) { return SESSION_IDLE; }
-bool service_send(const int16_t *samples, size_t count) { (void)samples; (void)count; return false; }
-void service_end(void) {}
-const char *service_text(void) { return ""; }
-void service_release(void) {}
-
-#endif

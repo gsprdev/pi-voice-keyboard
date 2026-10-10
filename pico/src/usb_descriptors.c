@@ -1,5 +1,6 @@
 // USB descriptors for the composite device: HID boot keyboard + two CDC serial
-// ports. The console must be the first CDC interface, since stdio_usb uses it.
+// ports + CDC-NCM Ethernet. The console must be the first CDC interface, since
+// stdio_usb uses it.
 
 #include "pico/unique_id.h"
 #include "tusb.h"
@@ -14,6 +15,8 @@ enum {
     ITF_NUM_CDC_CONSOLE_DATA,
     ITF_NUM_CDC_AUDIO,
     ITF_NUM_CDC_AUDIO_DATA,
+    ITF_NUM_NET,
+    ITF_NUM_NET_DATA,
     ITF_NUM_TOTAL
 };
 
@@ -25,6 +28,8 @@ enum {
     STR_HID,
     STR_CDC_CONSOLE,
     STR_CDC_AUDIO,
+    STR_NET,
+    STR_NET_MAC, // the host's MAC address, from tud_network_mac_address
 };
 
 #define EPNUM_HID       0x81
@@ -34,6 +39,9 @@ enum {
 #define EPNUM_CDC_AUDIO_NOTIF   0x84
 #define EPNUM_CDC_AUDIO_OUT     0x05
 #define EPNUM_CDC_AUDIO_IN      0x85
+#define EPNUM_NET_NOTIF         0x86
+#define EPNUM_NET_OUT           0x07
+#define EPNUM_NET_IN            0x87
 
 static const tusb_desc_device_t desc_device = {
     .bLength            = sizeof(tusb_desc_device_t),
@@ -46,7 +54,8 @@ static const tusb_desc_device_t desc_device = {
     .bMaxPacketSize0    = CFG_TUD_ENDPOINT0_SIZE,
     .idVendor           = USB_VID,
     .idProduct          = USB_PID,
-    .bcdDevice          = 0x0100,
+    // Bumped when the interfaces change, so Windows re-reads the descriptors
+    .bcdDevice          = 0x0101,
     .iManufacturer      = STR_MANUFACTURER,
     .iProduct           = STR_PRODUCT,
     .iSerialNumber      = STR_SERIAL,
@@ -67,7 +76,8 @@ const uint8_t *tud_hid_descriptor_report_cb(uint8_t instance) {
     return desc_hid_report;
 }
 
-#define CONFIG_TOTAL_LEN (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + 2 * TUD_CDC_DESC_LEN)
+#define CONFIG_TOTAL_LEN \
+    (TUD_CONFIG_DESC_LEN + TUD_HID_DESC_LEN + 2 * TUD_CDC_DESC_LEN + TUD_CDC_NCM_DESC_LEN)
 
 static const uint8_t desc_configuration[] = {
     TUD_CONFIG_DESCRIPTOR(1, ITF_NUM_TOTAL, 0, CONFIG_TOTAL_LEN, 0, 120),
@@ -77,6 +87,8 @@ static const uint8_t desc_configuration[] = {
                        EPNUM_CDC_CONSOLE_OUT, EPNUM_CDC_CONSOLE_IN, CFG_TUD_CDC_EP_BUFSIZE),
     TUD_CDC_DESCRIPTOR(ITF_NUM_CDC_AUDIO, STR_CDC_AUDIO, EPNUM_CDC_AUDIO_NOTIF, 8,
                        EPNUM_CDC_AUDIO_OUT, EPNUM_CDC_AUDIO_IN, CFG_TUD_CDC_EP_BUFSIZE),
+    TUD_CDC_NCM_DESCRIPTOR(ITF_NUM_NET, STR_NET, STR_NET_MAC, EPNUM_NET_NOTIF, 64,
+                           EPNUM_NET_OUT, EPNUM_NET_IN, CFG_TUD_NET_ENDPOINT_SIZE, CFG_TUD_NET_MTU),
 };
 
 const uint8_t *tud_descriptor_configuration_cb(uint8_t index) {
@@ -93,6 +105,8 @@ static const char *const string_desc[] = {
     [STR_HID]          = "Voice Keyboard",
     [STR_CDC_CONSOLE]  = "Voice Keyboard Console",
     [STR_CDC_AUDIO]    = "Voice Keyboard Audio",
+    [STR_NET]          = "Voice Keyboard Network",
+    [STR_NET_MAC]      = NULL, // generated
 };
 
 const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
@@ -103,6 +117,13 @@ const uint16_t *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
     if (index == STR_LANGID) {
         desc_str[1] = 0x0409; // English
         len = 1;
+    } else if (index == STR_NET_MAC) {
+        // 12 hex digits, no separators
+        len = 0;
+        for (size_t i = 0; i < sizeof(tud_network_mac_address); i++) {
+            desc_str[1 + len++] = "0123456789ABCDEF"[tud_network_mac_address[i] >> 4];
+            desc_str[1 + len++] = "0123456789ABCDEF"[tud_network_mac_address[i] & 0xf];
+        }
     } else {
         if (index >= TU_ARRAY_SIZE(string_desc)) {
             return NULL;

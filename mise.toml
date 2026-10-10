@@ -103,6 +103,10 @@ cp build${PICO_BOARD:+-$PICO_BOARD}/voice-keyboard.uf2 "$(findmnt -no TARGET -S 
 description = "Follow the Pico console log"
 run = "stty -F /dev/ttyACM0 raw -echo && cat /dev/ttyACM0"
 
+[tasks."pico:host-setup"]
+description = "Configure this computer's end of the Pico's USB network (192.168.71.2, NetworkManager)"
+run = "{{config_root}}/host/host-setup.sh"
+
 [tasks."pico:capture"]
 description = "Record from the Pico audio port and transcribe locally"
 run = "pico/tools/capture.py test.wav --transcribe http://localhost:8080"
