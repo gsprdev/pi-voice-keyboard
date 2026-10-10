@@ -8,8 +8,10 @@
 
 // Composite device: HID keyboard + two CDC serial ports
 // (console: logs and text input; audio: raw microphone capture)
+// + CDC-NCM Ethernet to the host
 #define CFG_TUD_HID             1
 #define CFG_TUD_CDC             2
+#define CFG_TUD_NCM             1
 #define CFG_TUD_MSC             0
 #define CFG_TUD_MIDI            0
 #define CFG_TUD_VENDOR          0
@@ -19,5 +21,9 @@
 #define CFG_TUD_CDC_RX_BUFSIZE  256
 #define CFG_TUD_CDC_TX_BUFSIZE  4096 // ~125ms of 16kHz audio
 #define CFG_TUD_CDC_EP_BUFSIZE  64
+
+// Two transfer blocks each way, so one can fill while the other is in flight
+#define CFG_TUD_NCM_IN_NTB_N    2
+#define CFG_TUD_NCM_OUT_NTB_N   2
 
 #endif

@@ -1,4 +1,4 @@
-// Minimal HTTP/1.1 client on lwIP's raw TCP API (cyw43 poll mode: every
+// Minimal HTTP/1.1 client on lwIP's raw TCP API (lwIP is polled: every
 // callback runs from net_task in the main loop, so no locking is needed).
 
 #include <stdio.h>
@@ -9,6 +9,7 @@
 #include "http.h"
 #include "lwip/dns.h"
 #include "lwip/tcp.h"
+#include "net.h"
 #include "pico/time.h"
 
 // Body bytes waiting for the TCP send buffer: ~2s of 16kHz audio, enough to
@@ -210,6 +211,11 @@ static err_t on_connected(void *arg, struct tcp_pcb *tpcb, err_t err) {
 }
 
 static void connect_to_addr(http_conn_t *c) {
+    // Fail at once rather than at the timeout, e.g. the USB host while USB is down
+    if (!net_routable(&c->addr)) {
+        fail(c, "network down");
+        return;
+    }
     c->pcb = tcp_new_ip_type(IP_GET_TYPE(&c->addr));
     if (!c->pcb) {
         fail(c, "out of memory");

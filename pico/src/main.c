@@ -1,7 +1,8 @@
-// Voice Keyboard firmware for Raspberry Pi Pico 2 W.
+// Voice Keyboard firmware for Raspberry Pi Pico 2 W and Pico 2.
 //
-// Hold the button to stream audio to the transcription service over Wi-Fi;
-// release to have the transcription typed on the USB keyboard.
+// Hold the button to stream audio to the transcription service, over USB to
+// the host or over Wi-Fi; release to have the transcription typed on the USB
+// keyboard.
 //
 // Development aids on the USB serial ports: text written to the console is
 // typed directly, and the audio port streams raw microphone PCM while open.
@@ -10,16 +11,13 @@
 
 #include "feedback.h"
 #include "mic.h"
+#include "net.h"
 #include "pico/stdio_usb.h"
 #include "pico/stdlib.h"
 #include "ptt.h"
 #include "service.h"
 #include "tusb.h"
 #include "typer.h"
-
-#if VOICEKB_NETWORK
-#include "net.h"
-#endif
 
 #define CDC_AUDIO 1
 
@@ -61,9 +59,7 @@ static void console_task(void) {
     bool connected = stdio_usb_connected();
     if (connected && !was_connected) {
         printf("Voice Keyboard ready\n");
-#if VOICEKB_NETWORK
         net_report();
-#endif
         service_report();
     }
     was_connected = connected;
@@ -78,10 +74,8 @@ static void console_task(void) {
 }
 
 int main(void) {
-#if VOICEKB_NETWORK
     // Loads the Wi-Fi chip's firmware; done first so USB enumeration isn't stalled
     net_init();
-#endif
     // TinyUSB must be up before stdio_usb, since we provide the descriptors
     tusb_init();
     stdio_init_all();
@@ -92,9 +86,7 @@ int main(void) {
 
     while (true) {
         tud_task();
-#if VOICEKB_NETWORK
         net_task();
-#endif
         service_task();
         console_task();
         audio_task();
