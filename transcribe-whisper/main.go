@@ -207,6 +207,7 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 	extractDuration := time.Since(segmentStart)
 	capture.timing("extract", extractDuration)
 	log.Printf("[%s] Extracted %d segments (%d chars) in %v", requestID, segmentCount, len(text), extractDuration)
+	capture.rawText(text)
 
 	totalDuration := time.Since(requestStart)
 	capture.timing("total", totalDuration)

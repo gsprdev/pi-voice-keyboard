@@ -60,7 +60,7 @@ cd transcribe-whisper
 ./test-client.sh                  # Records 5s audio with arecord, posts to /transcribe
 ```
 
-`transcribe-whisper/clean_test.go` covers transcription cleanup.
+`transcribe-whisper/clean_test.go` covers transcription cleanup, and `capture_test.go` covers debug capture.
 Run it with `mise run test`.
 There is no linting configured.
 

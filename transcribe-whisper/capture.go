@@ -61,6 +61,8 @@ type captureMeta struct {
 
 	Status   int    `json:"status"`
 	Response string `json:"response"`
+	// RawText is Whisper's output before cleanTranscription.
+	RawText string `json:"raw_text"`
 
 	AudioBytes   int64     `json:"audio_bytes"`
 	WAV          *wavInfo  `json:"wav,omitempty"`
@@ -190,6 +192,13 @@ func (c *capture) segment(s whisper.Segment) {
 		seg.Tokens = append(seg.Tokens, captureToken{Text: t.Text, P: t.P})
 	}
 	c.meta.Segments = append(c.meta.Segments, seg)
+}
+
+func (c *capture) rawText(text string) {
+	if c == nil {
+		return
+	}
+	c.meta.RawText = text
 }
 
 // responseWriter wraps w to record the status and body sent to the client.
