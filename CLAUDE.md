@@ -60,7 +60,9 @@ cd transcribe-whisper
 ./test-client.sh                  # Records 5s audio with arecord, posts to /transcribe
 ```
 
-There are no automated tests or linting configured in this project.
+`transcribe-whisper/clean_test.go` covers transcription cleanup.
+Run it with `mise run test`.
+There is no linting configured.
 
 ## Environment Variables
 

@@ -7,6 +7,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
@@ -202,7 +204,35 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Return transcription as plain text
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprint(w, text)
+	fmt.Fprint(w, cleanTranscription(text))
+}
+
+// Sentinels Whisper emits when nothing was said. They only mean "nothing" when they
+// are the entire transcription; mid-sentence they are left alone.
+var sentinelPattern = regexp.MustCompile(`(?i)^(?:\s*[\[(](?:BLANK_AUDIO|silence|inaudible)[\])])+\s*$`)
+
+// Background noise annotations, stripped wherever they appear.
+// beep is the Pi's record-start buzzer, the rest is ambient pickup around the speaker.
+var noisePattern = regexp.MustCompile(`(?i)[\[(](?:beep|clicks?|typing|music(?: playing)?)[\])]`)
+
+// Pause filler: "..." and the unicode ellipsis.
+var fillerPattern = regexp.MustCompile(`\.{2,}|…`)
+
+// A space stranded before punctuation.
+var strandedSpacePattern = regexp.MustCompile(` ([.,!?;:])`)
+
+// cleanTranscription strips annotations and filler so the result can be typed verbatim.
+// An empty result is intentional and means nothing should be typed.
+// Each pass replaces with a space freely; the final pass tidies all whitespace.
+func cleanTranscription(text string) string {
+	text = noisePattern.ReplaceAllString(text, " ")
+	if sentinelPattern.MatchString(text) {
+		return ""
+	}
+	text = fillerPattern.ReplaceAllString(text, " ")
+
+	text = strings.Join(strings.Fields(text), " ")
+	return strandedSpacePattern.ReplaceAllString(text, "$1")
 }
 
 // loadWAV reads a WAV file and returns the audio samples as float32

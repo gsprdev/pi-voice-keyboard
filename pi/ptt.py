@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import re
 import socket
 import subprocess
 import sys
@@ -130,8 +129,6 @@ def stop_recording():
         temp_file = None
         ledProcessing.off()
 
-    transcription = clean_transcription(transcription)
-
     if transcription:
         try:
             with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as sock:
@@ -140,29 +137,6 @@ def stop_recording():
         except Exception as e:
             print(f"Error sending to keyboard service: {e}")
 
-
-def clean_transcription(transcription):
-    """Trims default or error output from transcription. Sometimes this results in a blank string, which is intentional.
-    Can also clean up noise from a transcription, including small incidental things not meant for actual dictation."""
-
-    # Define noise keywords (without brackets - those are handled automatically)
-    noise_keywords = [
-        'BLANK_AUDIO', # Generally indicates an empty recording, in which case we shouldn't type anything
-        'silence',  # Generally indicates an empty recording, in which case we shouldn't type anything
-        'beep', # Likely to be the built-in buzzer to notify user of recording commencement
-        'inaudible', # Suggests either a bad recording or unintended pickup before or after intended verbalization
-    ]
-
-    # Non-transcription keywords and feedback are generally surrounded by () or []
-    patterns = [rf'[\[\(]?{re.escape(keyword)}[\]\)]?' for keyword in noise_keywords]
-    combined_pattern = '|'.join(patterns)
-
-    # Remove all noise patterns (case-insensitive)
-    cleaned = re.sub(combined_pattern, '', transcription, flags=re.IGNORECASE)
-
-    # Clean up whitespace left over after noise stripping
-    cleaned = re.sub(r'\s{2,}', ' ', cleaned)
-    return cleaned.strip()
 
 def check_service_health():
     """Check if transcription service is reachable before starting"""

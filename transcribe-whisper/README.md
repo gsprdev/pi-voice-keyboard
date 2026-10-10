@@ -44,6 +44,15 @@ Content-Length nor any other headers are required.
 
 **Purpose:** Transcription of speech to text, for the purposes of voice-typing.
 
+The response is meant to be typed as-is, so the service cleans it first rather than leaving that to the keyboard:
+
+- An empty body means nothing was said, and nothing should be typed.
+This is returned when the transcription is only Whisper's "nothing here" sentinels: `[BLANK_AUDIO]`, `[silence]`, or `(inaudible)`.
+These words are kept when they appear within real speech.
+- Background noise annotations are removed wherever they appear: `(beep)` (the Pi's record-start buzzer), `(click)`/`(clicks)`, `(typing)`, `[Music]`/`(music playing)`.
+- Pause filler (`...`, `…`) is removed.
+- Whitespace is collapsed and trimmed, and spaces left before punctuation are dropped.
+
 ## Prerequisites
 
 - NVIDIA GPU with CUDA support
