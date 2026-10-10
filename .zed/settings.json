@@ -1,0 +1,9 @@
+{
+  "lsp": {
+    "clangd": {
+      "binary": {
+        "arguments": ["--query-driver=/usr/bin/arm-none-eabi-*"]
+      }
+    }
+  }
+}

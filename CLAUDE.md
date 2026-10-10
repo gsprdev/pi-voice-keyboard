@@ -41,17 +41,17 @@ sudo systemctl enable --now type-ascii.service ptt.service
 
 ### Keyboard (Raspberry Pi Pico 2 W, in progress)
 ```sh
-cd pico
-cp src/secrets.h.example src/secrets.h   # Wi-Fi + service URL (git-ignored), required for Pico 2 W
-./build.sh                        # Build firmware: build/voice-keyboard.uf2
-PICO_BOARD=pico2 ./build.sh       # Plain Pico 2 (no Wi-Fi): build-pico2/
-MIC_TIMING=standard ./build.sh    # Standard I2S mic instead of SPH0645
-stty -F /dev/ttyACM0 1200         # Reboot a running Pico into BOOTSEL for flashing
-tools/capture.py test.wav         # Record from the audio serial port (stage 2 mic check)
+cp pico/src/secrets.h.example pico/src/secrets.h   # Wi-Fi + service URL (git-ignored), required for Pico 2 W
+mise run pico:build               # Build firmware: pico/build/voice-keyboard.uf2
+PICO_BOARD=pico2 mise run pico:build      # Plain Pico 2 (no Wi-Fi): pico/build-pico2/
+MIC_TIMING=standard mise run pico:build   # Standard I2S mic instead of SPH0645
+mise run pico:flash               # Build, reboot into BOOTSEL, copy to the RP2350 drive
+mise run pico:tail                # Follow the console log
+mise run pico:capture             # Record from the audio serial port and transcribe (stage 2 mic check)
 ```
 
 C firmware using pico-sdk (git submodule at `pico/pico-sdk`) and TinyUSB.
-`build.sh` initializes the submodule and the SDK libraries it needs.
+`mise run pico:build` initializes the submodule and the SDK libraries it needs.
 See `pico/PLAN.md` for design decisions, pin assignments, and the staged roadmap.
 
 ### Testing the Service

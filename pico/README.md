@@ -32,13 +32,13 @@ cp src/secrets.h.example src/secrets.h
 
 ```sh
 sudo apt install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
-./build.sh                             # Pico 2 W: build/voice-keyboard.uf2
-PICO_BOARD=pico2 ./build.sh            # Plain Pico 2, no networking: build-pico2/voice-keyboard.uf2
-MIC_TIMING=standard ./build.sh         # Standard I2S mic (ICS-43434 etc.) instead of SPH0645
+mise run pico:build                     # Pico 2 W: build/voice-keyboard.uf2
+PICO_BOARD=pico2 mise run pico:build    # Plain Pico 2, no networking: build-pico2/voice-keyboard.uf2
+MIC_TIMING=standard mise run pico:build # Standard I2S mic (ICS-43434 etc.) instead of SPH0645
 ```
 
 pico-sdk is a git submodule.
-`build.sh` fetches it and the libraries it needs automatically.
+`mise run pico:build` fetches it and the libraries it needs automatically.
 
 ## Serial permissions
 
@@ -57,11 +57,8 @@ Alternatively, `sudo usermod -aG dialout $USER` and log in again.
 
 First time: hold BOOTSEL while plugging in the Pico, then copy the `.uf2` to the `RP2350` drive that appears.
 
-Afterwards, the firmware can be put back into BOOTSEL mode without touching the button:
-
-```sh
-stty -F /dev/ttyACM0 1200         # Reboots into BOOTSEL; the RP2350 drive reappears
-```
+Afterwards, `mise run pico:flash` builds, reboots the running firmware into BOOTSEL (opening `/dev/ttyACM0` at 1200 baud), and copies the `.uf2` once the drive appears, mounting it if the desktop hasn't.
+It also takes `PICO_BOARD`.
 
 ## Wiring
 

@@ -21,7 +21,7 @@ Memory (520 KB) rules out buffering a whole recording, so audio is streamed whil
 
 ## Decisions
 
-- **Boards:** Pico 2 W, and the plain Pico 2 (`PICO_BOARD=pico2 ./build.sh`), which has no Wi-Fi.
+- **Boards:** Pico 2 W, and the plain Pico 2 (`PICO_BOARD=pico2 mise run pico:build`), which has no Wi-Fi.
   The plain Pico 2 gets networking in stage 5, with the USB host as its only server.
 - **Language:** C with pico-sdk (submodule) and TinyUSB.
 - **Microphone:** SPH0645 (Adafruit 3421), the mic the Pi build uses.
