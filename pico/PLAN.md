@@ -22,7 +22,7 @@ Memory (520 KB) rules out buffering a whole recording, so audio is streamed whil
 ## Decisions
 
 - **Boards:** Pico 2 W, and the plain Pico 2 (`PICO_BOARD=pico2 mise run pico:build`), which has no Wi-Fi.
-  The plain Pico 2 gets networking in stage 5, with the USB host as its only server.
+  The plain Pico 2 uses USB networking alone, with the USB host as its only server.
 - **Language:** C with pico-sdk (submodule) and TinyUSB.
 - **Microphone:** SPH0645 (Adafruit 3421), the mic the Pi build uses.
   It is non-standard: data changes on the rising clock edge, so it is sampled on the falling edge (`MIC_TIMING=sph0645`, the default).
@@ -63,6 +63,7 @@ One composite device:
 1. **HID boot keyboard**: same report format and VID/PID as the Pi gadget
 2. **CDC console** (`/dev/ttyACM0`): logs, stage 1 text input, 1200-baud reboot into BOOTSEL
 3. **CDC audio** (`/dev/ttyACM1`): raw 16 kHz mono PCM while the port is open (stage 2 verification)
+4. **CDC-NCM Ethernet**: point-to-point link to the USB host (stage 5)
 
 The CDC interfaces are development aids and may be compiled out of production builds later.
 
@@ -91,13 +92,15 @@ Mic power: 3V3 (pin 36) and GND.
 3. **Wi-Fi streaming** *(done, verified on hardware)*: button, LEDs, buzzer; chunked upload while held; type the response.
 4. **Multiple servers and readiness** *(built, awaiting hardware)*: readiness from the upload itself (`100 Continue`), fail-through across `SERVICE_URLS`.
    Replaces the `multi-backend` branch's background health checks, which streaming made unnecessary.
-5. **USB networking**: USB host as a transcription server, from the `usb-networking` branch.
-   CDC-NCM instead of ECM (native Windows support), host-side MAC `aa:bb:cc:dd:ee:01` so `host/host-setup.sh` works unchanged.
-   Two lwIP interfaces (Wi-Fi + USB) sharing one stack; the USB host goes first in the server list, and fails through instantly when unplugged.
-   On the plain Pico 2, USB is the only interface: the networking build split becomes Wi-Fi vs. USB rather than network vs. none, with `http.c`/`service.c` on both boards.
+5. **USB networking** *(built, awaiting hardware)*: USB host as a transcription server, from the `usb-networking` branch.
+   CDC-NCM instead of ECM (native Windows support), host-side MAC `aa:bb:cc:dd:ee:01`, device `aa:bb:cc:dd:ee:02`, the Pi gadget's subnet (Pico `192.168.71.1`, host `192.168.71.2`, static on both ends, no DHCP).
+   `host/host-setup.sh` now matches the host interface by MAC, since its name depends on the host's naming policy.
+   Two lwIP interfaces (Wi-Fi + USB) sharing one stack; the subnet decides the interface, so no routing configuration.
+   The USB host goes first in the server list, and fails through instantly while the host hasn't configured the device (an address on a down link isn't sent to the Wi-Fi default route).
+   On the plain Pico 2, USB is the only interface: the build split is Wi-Fi vs. USB only, with `http.c`/`service.c` on both boards, and `SERVICE_URLS` defaults to the USB host.
 6. **Polish**: watchdog, configuration over serial, optional production build without CDC.
 
-The `usb-networking` branch is shelved until stage 5.
+The `usb-networking` branch's Pi gadget side (CDC-ECM, `pi/usb0.nmconnection`) remains unmerged; only the host setup was carried over.
 
 ## Verifying stage 2
 

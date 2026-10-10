@@ -41,13 +41,14 @@ sudo systemctl enable --now type-ascii.service ptt.service
 
 ### Keyboard (Raspberry Pi Pico 2 W, in progress)
 ```sh
-cp pico/src/secrets.h.example pico/src/secrets.h   # Wi-Fi + service URL (git-ignored), required for Pico 2 W
+cp pico/src/secrets.h.example pico/src/secrets.h   # Wi-Fi + service URLs (git-ignored), required for Pico 2 W
 mise run pico:build               # Build firmware: pico/build/voice-keyboard.uf2
-PICO_BOARD=pico2 mise run pico:build      # Plain Pico 2 (no Wi-Fi): pico/build-pico2/
+PICO_BOARD=pico2 mise run pico:build      # Plain Pico 2 (no Wi-Fi, USB networking only): pico/build-pico2/
 MIC_TIMING=standard mise run pico:build   # Standard I2S mic instead of SPH0645
 mise run pico:flash               # Build, reboot into BOOTSEL, copy to the RP2350 drive
 mise run pico:tail                # Follow the console log
 mise run pico:capture             # Record from the audio serial port and transcribe (stage 2 mic check)
+mise run pico:host-setup          # Configure this computer's end of the USB network (once)
 ```
 
 C firmware using pico-sdk (git submodule at `pico/pico-sdk`) and TinyUSB.
@@ -100,11 +101,12 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
    - `gadget-*.sh` - USB HID gadget setup/teardown via Linux configfs
 
 3. **pico/** - Replacement firmware for the Pi, on a Pico 2 W (in progress)
-   - Composite USB device: HID boot keyboard + CDC console (logs) + CDC audio (raw PCM)
+   - Composite USB device: HID boot keyboard + CDC console (logs) + CDC audio (raw PCM) + CDC-NCM Ethernet to the host
    - `src/typer.c` - Port of `type-ascii.py`, driven from the main loop
    - `src/mic.c`, `src/mic_i2s.pio` - I2S mic via PIO + DMA at 32kHz, decimated to 16kHz mono PCM
    - `src/ptt.c` - Push-to-talk state machine (port of `ptt.py`), `src/feedback.c` LEDs/buzzer
-   - `src/net.c`, `src/http.c`, `src/service.c` - Wi-Fi, minimal lwIP HTTP client, transcription sessions: chunked streaming to `/transcribe`, readiness via `Expect: 100-continue`, fail-through across servers
+   - `src/net.c`, `src/usbnet.c` - Wi-Fi and USB (CDC-NCM, Pico `192.168.71.1`, host `192.168.71.2`) lwIP interfaces; `host/host-setup.sh` configures the host end
+   - `src/http.c`, `src/service.c` - minimal lwIP HTTP client, transcription sessions: chunked streaming to `/transcribe`, readiness via `Expect: 100-continue`, fail-through across servers
    - `src/pins.h` - GPIO assignments
 
 ## Key Technical Details

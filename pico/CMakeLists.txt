@@ -20,17 +20,20 @@ set_property(CACHE MIC_TIMING PROPERTY STRINGS standard sph0645)
 
 add_executable(voice-keyboard
     src/feedback.c
+    src/http.c
     src/main.c
     src/mic.c
+    src/net.c
     src/ptt.c
     src/service.c
     src/typer.c
     src/usb_descriptors.c
+    src/usbnet.c
 )
 
 pico_generate_pio_header(voice-keyboard ${CMAKE_CURRENT_LIST_DIR}/src/mic_i2s.pio)
 
-# tusb_config.h is looked up on the include path
+# tusb_config.h and lwipopts.h are looked up on the include path
 target_include_directories(voice-keyboard PRIVATE src)
 
 target_link_libraries(voice-keyboard PRIVATE
@@ -41,20 +44,21 @@ target_link_libraries(voice-keyboard PRIVATE
     tinyusb_device
 )
 
-# Wi-Fi boards: stream to the transcription service. Other boards build
-# without networking (useful for testing the keyboard and microphone).
+# Every board streams to the transcription service over USB networking (the
+# USB host as a server). Wi-Fi boards also reach servers on the Wi-Fi network.
 if (PICO_CYW43_SUPPORTED)
     if (NOT EXISTS ${CMAKE_CURRENT_LIST_DIR}/src/secrets.h)
         message(FATAL_ERROR "Wi-Fi settings missing: copy src/secrets.h.example to src/secrets.h and fill it in")
     endif()
-    target_sources(voice-keyboard PRIVATE src/http.c src/net.c)
     target_link_libraries(voice-keyboard PRIVATE pico_cyw43_arch_lwip_poll)
     target_compile_definitions(voice-keyboard PRIVATE
-        VOICEKB_NETWORK=1
+        VOICEKB_WIFI=1
         CYW43_HOST_NAME="voice-keyboard"
     )
 else()
-    target_compile_definitions(voice-keyboard PRIVATE VOICEKB_NETWORK=0)
+    # lwIP without the Wi-Fi driver; secrets.h is optional (SERVICE_URLS only)
+    target_link_libraries(voice-keyboard PRIVATE pico_lwip_nosys)
+    target_compile_definitions(voice-keyboard PRIVATE VOICEKB_WIFI=0)
 endif()
 
 # Logs (printf) and stage 1 text input go over the first CDC serial interface.

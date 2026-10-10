@@ -11,7 +11,7 @@ See [PLAN.md](PLAN.md) for design decisions, pin assignments, and the staged roa
 2. **Microphone**: done
 3. **Wi-Fi streaming**: done
 4. **Multiple servers and readiness**: built, awaiting hardware verification
-5. USB networking
+5. **USB networking**: built, awaiting hardware verification
 6. Polish
 
 ## USB interfaces
@@ -21,10 +21,12 @@ The Pico appears as a composite device:
 - **HID boot keyboard**: the keyboard itself, same report format as the Pi gadget
 - **Console** (`/dev/ttyACM0` on Linux): logs, and text typed directly for testing
 - **Audio** (`/dev/ttyACM1`): raw 16 kHz mono 16-bit PCM while the port is open
+- **Network** (CDC-NCM Ethernet): the Pico is `192.168.71.1`, the host `192.168.71.2`; see [USB networking](#usb-networking)
 
 ## Build
 
-Wi-Fi settings are compiled in. Copy the example and fill it in (it's git-ignored):
+Wi-Fi settings and service URLs are compiled in. Copy the example and fill it in (it's git-ignored).
+It's required on the Pico 2 W; on the plain Pico 2 it's optional, and the USB host is the default server.
 
 ```sh
 cp src/secrets.h.example src/secrets.h
@@ -33,12 +35,33 @@ cp src/secrets.h.example src/secrets.h
 ```sh
 sudo apt install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib
 mise run pico:build                     # Pico 2 W: build/voice-keyboard.uf2
-PICO_BOARD=pico2 mise run pico:build    # Plain Pico 2, no networking: build-pico2/voice-keyboard.uf2
+PICO_BOARD=pico2 mise run pico:build    # Plain Pico 2, USB networking only: build-pico2/voice-keyboard.uf2
 MIC_TIMING=standard mise run pico:build # Standard I2S mic (ICS-43434 etc.) instead of SPH0645
 ```
 
 pico-sdk is a git submodule.
 `mise run pico:build` fetches it and the libraries it needs automatically.
+
+## USB networking
+
+The Pico is also a USB Ethernet adapter (CDC-NCM, supported natively by Linux, macOS and Windows), so a transcription service on the computer it's plugged into can be its first server, with no Wi-Fi involved.
+It's the same link as the Pi gadget: the Pico is `192.168.71.1`, the host `192.168.71.2/24`, set statically on both ends.
+
+Configure the host end once (Linux with NetworkManager; no root needed):
+
+```sh
+mise run pico:host-setup          # runs host/host-setup.sh
+```
+
+Then put the host first in `SERVICE_URLS`, ahead of any servers on Wi-Fi:
+
+```c
+#define SERVICE_URLS "http://192.168.71.2:8080,http://gpu-host.lan:8080"
+```
+
+Addresses on `192.168.71.0/24` always go over USB, everything else over Wi-Fi.
+When the host hasn't configured the device (a power-only port or charger) the USB host fails through at once; when it has, but nothing answers there, it takes the usual 300 ms.
+Check the link from the host with `ping 192.168.71.1`.
 
 ## Serial permissions
 
@@ -77,9 +100,9 @@ Hold the button, wait for the beep, and speak; release to have the transcription
   The servers in `SERVICE_URLS` are tried in order, up to 300 ms each, until one is ready.
 - **Processing LED:** waiting for the transcription, or typing it.
   You can press for the next one any time: it starts once the previous transcription is back, and can overlap the typing.
-- **Three beeps with the recording LED:** no server ready (or Wi-Fi down), or the upload failed
+- **Three beeps with the recording LED:** no server ready (or no network), or the upload failed
 
-Open the console (`/dev/ttyACM0`) to see why: it prints Wi-Fi and service status when opened, and logs each step.
+Open the console (`/dev/ttyACM0`) to see why: it prints Wi-Fi, USB network and service status when opened, and logs each step.
 
 ## Try it
 
