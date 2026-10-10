@@ -56,9 +56,9 @@ Drivers through `nvidia-cuda-toolkit` Ubuntu multiverse package are the only one
 On the GPU-bearing Linux host:
 
 1. `sudo apt install nvidia-cuda-toolkit`
-2. `../build-whisper-cuda.sh`
-3. Download a Whisper model using `../download-model.sh`
-4. Compile using `./build.sh`
+2. `mise run whisper`
+3. Download a Whisper model using `mise run model` (`MODEL=<name>` for others)
+4. Compile using `mise run build`
 5. Edit `./transcription.service` for your paths, then install as a systemd service
 
 This sytem will need to exist on the same local network as the Pi-based keyboard.

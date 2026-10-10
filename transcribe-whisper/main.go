@@ -12,38 +12,28 @@ import (
 	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
-const (
-	defaultPort          = "8080"
-	defaultModelPath     = "../speech-models/en_whisper_medium.ggml"
-	defaultModelLanguage = "en"
-)
-
 var (
 	model         whisper.Model
 	modelPath     string
 	modelLanguage string
 )
 
+func getenv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func main() {
-	// Get configuration from environment or use defaults
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
-	}
-
-	modelPath = os.Getenv("MODEL_PATH")
-	if modelPath == "" {
-		modelPath = defaultModelPath
-	}
-
-	modelLanguage = os.Getenv("MODEL_LANGUAGE")
-	if modelLanguage == "" {
-		modelLanguage = defaultModelLanguage
-	}
+	port := getenv("PORT", "8080")
+	// Upstream model name, as downloaded by `mise run model`; relative to the repo root
+	modelPath = "speech-models/ggml-" + getenv("MODEL", "medium.en") + ".bin"
+	modelLanguage = getenv("MODEL_LANGUAGE", "en")
 
 	// Validate model file exists
 	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
-		log.Fatalf("Model file not found: %s\n\nPlease download a model using:\n  ./download-model.sh medium.en\n\nOr set MODEL_PATH environment variable to point to your model file.", modelPath)
+		log.Fatalf("Model file not found: %s (download with `mise run model`)", modelPath)
 	}
 
 	// Get model file size for logging

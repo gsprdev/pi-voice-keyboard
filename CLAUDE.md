@@ -11,24 +11,25 @@ It enables hands-free typing by using a Raspberry Pi Zero 2 W as a USB HID keybo
 
 ### Whisper Library (required first)
 ```sh
-./build-whisper-cuda.sh           # Build whisper.cpp with CUDA support
-./download-model.sh medium.en     # Download a Whisper model
+mise run whisper                  # Build whisper.cpp with CUDA support (incremental)
+mise run model                    # Download the Whisper model (MODEL=large-v3 for others)
 ```
 
 whisper.cpp is a git submodule.
-The build script handles `git submodule update --init` automatically.
+`mise run whisper` runs `git submodule update --init` and the CMake configure automatically.
 
 ### Transcription Service
 ```sh
-cd transcribe-whisper
-./build.sh                        # Build Go service (requires whisper.cpp built first)
-./run.sh                          # Run with default port 8080
-PORT=9000 ./run.sh                # Run on custom port
+mise run build                    # Build Go service (requires whisper.cpp built first)
+mise run run                      # Build and run with default port 8080
+PORT=9000 mise run run            # Run on custom port
+mise run test                     # Run Go tests
 ```
 
 The service is a Go module (Go 1.25+) using CGO to link against whisper.cpp.
-`build.sh` sets the required `CGO_CFLAGS`, `CGO_LDFLAGS`, and `CGO_CXXFLAGS` pointing to the whisper.cpp build output.
-`run.sh` sets `LD_LIBRARY_PATH` at runtime.
+`mise run build` installs the whisper.cpp libraries into `dist/lib` and builds `dist/transcribe-whisper` with an `$ORIGIN/lib` rpath.
+`dist/` is self-contained, so the systemd unit runs `dist/transcribe-whisper` directly, without mise or the submodule.
+`mise.toml` sets `CGO_CFLAGS`, `CGO_LDFLAGS`, and `LD_LIBRARY_PATH` (for `go test`).
 
 ### Keyboard (Raspberry Pi)
 ```sh
@@ -65,7 +66,7 @@ There are no automated tests or linting configured in this project.
 
 Service configuration (GPU host):
 - `PORT` - HTTP port (default: 8080)
-- `MODEL_PATH` - Path to Whisper model (default: `../speech-models/en_whisper_medium.ggml`)
+- `MODEL` - Upstream Whisper model name, loaded from `speech-models/ggml-<MODEL>.bin` relative to the working directory (default: `medium.en`)
 - `MODEL_LANGUAGE` - Transcription language (default: `en`)
 
 Pico configuration is compiled in from `pico/src/secrets.h`: `WIFI_SSID`, `WIFI_PASSWORD`, `SERVICE_URLS` (comma-separated, priority order).

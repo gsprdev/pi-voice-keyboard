@@ -1,0 +1,73 @@
+[tools]
+go = "1.27.2"
+
+[vars]
+whisper = "{{config_root}}/whisper.cpp"
+dist = "{{config_root}}/dist"
+
+[env]
+# Headers and libs both come from the staged dist/ copy.
+# --disable-new-dtags makes $ORIGIN/lib an RPATH, which also covers the libs' own dependencies.
+CGO_CFLAGS = "-I{{vars.dist}}/include"
+CGO_LDFLAGS = "-L{{vars.dist}}/lib -lwhisper -lggml -lggml-base -lggml-cpu -Wl,-rpath-link,{{vars.dist}}/lib -Wl,-rpath,$$ORIGIN/lib -Wl,--disable-new-dtags"
+LD_LIBRARY_PATH = "{{vars.dist}}/lib:{{env.LD_LIBRARY_PATH | default(value='')}}"
+
+[tasks."whisper:init"]
+description = "Check out the whisper.cpp submodule if it is empty"
+# Only when empty, so a submodule checkout being bumped is not reset
+run = "[ -e {{vars.whisper}}/.git ] || git submodule update --init {{vars.whisper}}"
+
+[tasks."whisper:configure"]
+description = "Configure whisper.cpp with CUDA"
+depends = ["whisper:init"]
+run = """
+command -v nvcc >/dev/null || { echo 'CUDA toolkit missing: sudo apt install nvidia-cuda-toolkit' >&2; exit 1; }
+cmake -S {{vars.whisper}} -B {{vars.whisper}}/build -DGGML_CUDA=1 \
+  -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF
+touch {{vars.whisper}}/build/.configured
+"""
+sources = ["{{vars.whisper}}/CMakeLists.txt"]
+outputs = ["{{vars.whisper}}/build/.configured"]
+
+[tasks.whisper]
+description = "Build whisper.cpp (incremental)"
+depends = ["whisper:configure"]
+run = "cmake --build {{vars.whisper}}/build -j $(( $(nproc) < 6 ? $(nproc) : 6 )) --config Release && touch {{vars.whisper}}/build/.built"
+sources = ["{{vars.whisper}}/{include,src,ggml}/**/*"]
+outputs = ["{{vars.whisper}}/build/.built"]
+
+[tasks.stage]
+description = "Install whisper.cpp libraries into dist/"
+depends = ["whisper"]
+run = "cmake --install {{vars.whisper}}/build --prefix {{vars.dist}} >/dev/null && touch {{vars.dist}}/lib/.staged"
+sources = ["{{vars.whisper}}/build/.built"]
+outputs = ["{{vars.dist}}/lib/.staged"]  # install keeps source mtimes, so stamp it
+
+[tasks.build]
+description = "Build the transcription service into dist/"
+depends = ["stage"]
+dir = "{{config_root}}/transcribe-whisper"
+run = "go build -o {{vars.dist}}/transcribe-whisper"
+sources = ["*.go", "go.mod", "go.sum", "{{vars.dist}}/lib/.staged"]
+outputs = ["{{vars.dist}}/transcribe-whisper"]
+
+[tasks.model]
+description = "Download the Whisper model (override with MODEL=...)"
+depends = ["whisper:init"]
+# The upstream script skips existing files, so remove a failed partial download
+run = """
+model=${MODEL:-medium.en}  # same default as main.go
+mkdir -p speech-models
+{{vars.whisper}}/models/download-ggml-model.sh $model speech-models || { rm -f speech-models/ggml-$model.bin; exit 1; }
+"""
+
+[tasks.run]
+description = "Run the transcription service (override with PORT=... MODEL=...)"
+depends = ["build", "model"]
+run = "{{vars.dist}}/transcribe-whisper"
+
+[tasks.test]
+description = "Run transcribe-whisper tests"
+depends = ["stage"]
+dir = "{{config_root}}/transcribe-whisper"
+run = "go test ."

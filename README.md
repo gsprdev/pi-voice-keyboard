@@ -27,9 +27,9 @@ Non-Ubuntu systems can theoretically be used, through alternative drivers direct
 
 ```bash
 sudo apt install nvidia-cuda-toolkit
-./build-whisper-cuda.sh
-./download-model.sh medium.en
-cd transcribe-whisper && ./build.sh && ./run.sh
+mise run whisper
+mise run model
+mise run run
 ```
 
 ### Raspberry Pi Setup
