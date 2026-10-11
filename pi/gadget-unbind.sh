@@ -6,3 +6,4 @@ if [ -e "$G/UDC" ]; then
 fi
 find $G/configs -type l -delete 2>/dev/null
 rm -rf $G/functions/hid.usb0 2>/dev/null
+rm -rf $G/functions/ecm.usb0 2>/dev/null
