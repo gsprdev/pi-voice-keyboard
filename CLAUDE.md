@@ -60,7 +60,7 @@ cd transcribe-whisper
 ./test-client.sh                  # Records 5s audio with arecord, posts to /transcribe
 ```
 
-`transcribe-whisper/clean_test.go` covers transcription cleanup.
+`transcribe-whisper/clean_test.go` covers transcription cleanup, and `capture_test.go` covers debug capture.
 Run it with `mise run test`.
 There is no linting configured.
 
@@ -70,6 +70,8 @@ Service configuration (GPU host):
 - `PORT` - HTTP port (default: 8080)
 - `MODEL` - Upstream Whisper model name, loaded from `speech-models/ggml-<MODEL>.bin` relative to the working directory (default: `medium.en`)
 - `MODEL_LANGUAGE` - Transcription language (default: `en`)
+- `DEBUG_CAPTURE_DIR` - Keep recent requests (audio, transcript, metadata) here for troubleshooting; unset (default) disables
+- `DEBUG_CAPTURE_KEEP` - Number of captures to keep (default: 50)
 
 Pico configuration is compiled in from `pico/src/secrets.h`: `WIFI_SSID`, `WIFI_PASSWORD`, `SERVICE_URLS` (comma-separated, priority order).
 

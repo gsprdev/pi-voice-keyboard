@@ -33,6 +33,8 @@ func main() {
 	modelPath = "speech-models/ggml-" + getenv("MODEL", "medium.en") + ".bin"
 	modelLanguage = getenv("MODEL_LANGUAGE", "en")
 
+	initCapture()
+
 	// Validate model file exists
 	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
 		log.Fatalf("Model file not found: %s (download with `mise run model`)", modelPath)
@@ -98,6 +100,10 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("[%s] Starting transcription request", requestID)
 
+	capture := newCapture(requestID, r)
+	defer capture.finish()
+	w = capture.responseWriter(w)
+
 	// Create temporary file for audio
 	tempFile, err := os.CreateTemp("", "audio-*.wav")
 	if err != nil {
@@ -110,7 +116,7 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Write request body to temp file
 	ioStart := time.Now()
-	bytesWritten, err := io.Copy(tempFile, r.Body)
+	bytesWritten, err := io.Copy(capture.audioWriter(tempFile), r.Body)
 	if err != nil {
 		log.Printf("[%s] Error writing audio data: %v", requestID, err)
 		http.Error(w, "Error reading audio data", http.StatusBadRequest)
@@ -118,6 +124,7 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	tempFile.Close()
 	uploadDuration := time.Since(ioStart)
+	capture.timing("upload", uploadDuration)
 	log.Printf("[%s] Audio upload complete: %d bytes in %v", requestID, bytesWritten, uploadDuration)
 
 	// Load WAV file and convert to float32 samples
@@ -130,6 +137,8 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	audioDuration := float64(len(samples)) / 16000.0 // Assuming 16kHz sample rate
 	decodeDuration := time.Since(loadStart)
+	capture.timing("decode", decodeDuration)
+	capture.decoded(samples, audioDuration)
 	log.Printf("[%s] WAV loaded and decoded: %d samples (%.2fs audio) in %v", requestID, len(samples), audioDuration, decodeDuration)
 
 	// Create processing context
@@ -141,11 +150,13 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	contextDuration := time.Since(contextStart)
+	capture.timing("context", contextDuration)
 	log.Printf("[%s] Context created in %v", requestID, contextDuration)
 
 	// Set transcription parameters
 	context.SetLanguage("en")
 	context.SetTranslate(false)
+	capture.context(context)
 
 	// Process the audio samples
 	log.Printf("[%s] Starting Whisper inference...", requestID)
@@ -157,6 +168,7 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	inferenceDuration := time.Since(inferenceStart)
+	capture.timing("inference", inferenceDuration)
 	realTimeFactor := inferenceDuration.Seconds() / audioDuration
 	log.Printf("[%s] Whisper inference complete in %v (%.2fx realtime)", requestID, inferenceDuration, realTimeFactor)
 
@@ -173,6 +185,8 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[%s] Error reading segment: %v", requestID, err)
 			break
 		}
+
+		capture.segment(segment)
 
 		// Add segment text
 		segmentText := segment.Text
@@ -191,9 +205,12 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 		segmentCount++
 	}
 	extractDuration := time.Since(segmentStart)
+	capture.timing("extract", extractDuration)
 	log.Printf("[%s] Extracted %d segments (%d chars) in %v", requestID, segmentCount, len(text), extractDuration)
+	capture.rawText(text)
 
 	totalDuration := time.Since(requestStart)
+	capture.timing("total", totalDuration)
 	log.Printf("[%s] === SUMMARY === Total: %v | Upload: %v | Decode: %v | Context: %v | Inference: %v (%.2fx RT) | Extract: %v",
 		requestID, totalDuration,
 		uploadDuration,
