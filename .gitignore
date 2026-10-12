@@ -2,7 +2,8 @@
 # https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
 
 # Build outputs and dependencies
-transcribe-whisper/bin/
+pico/build*/
+dist/
 
 # Downloaded models
 speech-models/
@@ -49,3 +50,6 @@ __pycache__/
 *.pyo
 *.egg-info/
 .venv/
+
+# Pico Wi-Fi credentials
+pico/src/secrets.h

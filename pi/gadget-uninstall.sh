@@ -15,6 +15,7 @@ rm -f "$SBIN_DIR/ptt"
 rm -f "$SYSTEMD_DIR/kb-serve.socket"
 rm -f "$SYSTEMD_DIR/type-ascii.service"
 rm -f "$SYSTEMD_DIR/ptt.service"
+rm -f /etc/NetworkManager/system-connections/usb0.nmconnection
 
 systemctl daemon-reload
 
@@ -33,6 +34,9 @@ find $G/configs -type l -delete 2>/dev/null || true
 
 # Remove HID function
 rm -rf $G/functions/hid.usb0 2>/dev/null || true
+
+# Remove ECM function
+rm -rf $G/functions/ecm.usb0 2>/dev/null || true
 
 # Remove config strings and config
 rm -rf $G/configs/c.1/strings/0x409 2>/dev/null || true

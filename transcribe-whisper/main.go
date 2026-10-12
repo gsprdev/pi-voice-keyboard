@@ -7,15 +7,11 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
-)
-
-const (
-	defaultPort          = "8080"
-	defaultModelPath     = "../speech-models/en_whisper_medium.ggml"
-	defaultModelLanguage = "en"
 )
 
 var (
@@ -24,26 +20,22 @@ var (
 	modelLanguage string
 )
 
+func getenv(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
 func main() {
-	// Get configuration from environment or use defaults
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
-	}
-
-	modelPath = os.Getenv("MODEL_PATH")
-	if modelPath == "" {
-		modelPath = defaultModelPath
-	}
-
-	modelLanguage = os.Getenv("MODEL_LANGUAGE")
-	if modelLanguage == "" {
-		modelLanguage = defaultModelLanguage
-	}
+	port := getenv("PORT", "8080")
+	// Upstream model name, as downloaded by `mise run model`; relative to the repo root
+	modelPath = "speech-models/ggml-" + getenv("MODEL", "medium.en") + ".bin"
+	modelLanguage = getenv("MODEL_LANGUAGE", "en")
 
 	// Validate model file exists
 	if _, err := os.Stat(modelPath); os.IsNotExist(err) {
-		log.Fatalf("Model file not found: %s\n\nPlease download a model using:\n  ./download-model.sh medium.en\n\nOr set MODEL_PATH environment variable to point to your model file.", modelPath)
+		log.Fatalf("Model file not found: %s (download with `mise run model`)", modelPath)
 	}
 
 	// Get model file size for logging
@@ -212,7 +204,35 @@ func transcribeHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Return transcription as plain text
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	fmt.Fprint(w, text)
+	fmt.Fprint(w, cleanTranscription(text))
+}
+
+// Sentinels Whisper emits when nothing was said. They only mean "nothing" when they
+// are the entire transcription; mid-sentence they are left alone.
+var sentinelPattern = regexp.MustCompile(`(?i)^(?:\s*[\[(](?:BLANK_AUDIO|silence|inaudible)[\])])+\s*$`)
+
+// Background noise annotations, stripped wherever they appear.
+// beep is the Pi's record-start buzzer, the rest is ambient pickup around the speaker.
+var noisePattern = regexp.MustCompile(`(?i)[\[(](?:beep|clicks?|typing|music(?: playing)?)[\])]`)
+
+// Pause filler: "..." and the unicode ellipsis.
+var fillerPattern = regexp.MustCompile(`\.{2,}|…`)
+
+// A space stranded before punctuation.
+var strandedSpacePattern = regexp.MustCompile(` ([.,!?;:])`)
+
+// cleanTranscription strips annotations and filler so the result can be typed verbatim.
+// An empty result is intentional and means nothing should be typed.
+// Each pass replaces with a space freely; the final pass tidies all whitespace.
+func cleanTranscription(text string) string {
+	text = noisePattern.ReplaceAllString(text, " ")
+	if sentinelPattern.MatchString(text) {
+		return ""
+	}
+	text = fillerPattern.ReplaceAllString(text, " ")
+
+	text = strings.Join(strings.Fields(text), " ")
+	return strandedSpacePattern.ReplaceAllString(text, "$1")
 }
 
 // loadWAV reads a WAV file and returns the audio samples as float32
