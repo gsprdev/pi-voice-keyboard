@@ -64,7 +64,7 @@ Drivers through `nvidia-cuda-toolkit` Ubuntu multiverse package are the only one
 
 On the GPU-bearing Linux host:
 
-1. `sudo apt install nvidia-cuda-toolkit`
+1. `sudo apt install nvidia-cuda-toolkit` (non-NVIDIA GPUs: `sudo apt install libvulkan-dev glslc` and set `WHISPER_GPU=vulkan` for step 2)
 2. `mise run whisper`
 3. Download a Whisper model using `mise run model` (`MODEL=<name>` for others)
 4. Compile using `mise run build`

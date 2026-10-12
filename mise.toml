@@ -19,22 +19,30 @@ description = "Check out the whisper.cpp submodule if it is empty"
 run = "[ -e {{vars.whisper}}/.git ] || git submodule update --init {{vars.whisper}}"
 
 [tasks."whisper:configure"]
-description = "Configure whisper.cpp with CUDA"
+description = "Configure whisper.cpp with CUDA (WHISPER_GPU=vulkan for non-NVIDIA GPUs)"
 depends = ["whisper:init"]
 run = """
-command -v nvcc >/dev/null || { echo 'CUDA toolkit missing: sudo apt install nvidia-cuda-toolkit' >&2; exit 1; }
-cmake -S {{vars.whisper}} -B {{vars.whisper}}/build -DGGML_CUDA=1 \
+case ${WHISPER_GPU:-cuda} in
+  cuda) command -v nvcc >/dev/null || { echo 'CUDA toolkit missing: sudo apt install nvidia-cuda-toolkit' >&2; exit 1; }
+        gpu="-DGGML_CUDA=ON -DGGML_VULKAN=OFF" ;;
+  vulkan) command -v glslc >/dev/null && [ -e /usr/include/vulkan/vulkan.h ] || { echo 'Vulkan SDK missing: sudo apt install libvulkan-dev glslc' >&2; exit 1; }
+        gpu="-DGGML_CUDA=OFF -DGGML_VULKAN=ON" ;;
+  *) echo "Unknown WHISPER_GPU=$WHISPER_GPU (cuda or vulkan)" >&2; exit 1 ;;
+esac
+cmake -S {{vars.whisper}} -B {{vars.whisper}}/build $gpu \
   -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF
-touch {{vars.whisper}}/build/.configured
+# One stamp per backend, so switching WHISPER_GPU reconfigures
+rm -f {{vars.whisper}}/build/.configured*
+touch {{vars.whisper}}/build/.configured-${WHISPER_GPU:-cuda}
 """
 sources = ["{{vars.whisper}}/CMakeLists.txt"]
-outputs = ["{{vars.whisper}}/build/.configured"]
+outputs = ["{{vars.whisper}}/build/.configured-{{get_env(name='WHISPER_GPU', default='cuda')}}"]
 
 [tasks.whisper]
 description = "Build whisper.cpp (incremental)"
 depends = ["whisper:configure"]
 run = "cmake --build {{vars.whisper}}/build -j $(( $(nproc) < 6 ? $(nproc) : 6 )) --config Release && touch {{vars.whisper}}/build/.built"
-sources = ["{{vars.whisper}}/{include,src,ggml}/**/*"]
+sources = ["{{vars.whisper}}/{include,src,ggml}/**/*", "{{vars.whisper}}/build/.configured-*"]
 outputs = ["{{vars.whisper}}/build/.built"]
 
 [tasks.stage]

@@ -12,6 +12,7 @@ It enables hands-free typing by using a Raspberry Pi Zero 2 W as a USB HID keybo
 ### Whisper Library (required first)
 ```sh
 mise run whisper                  # Build whisper.cpp with CUDA support (incremental)
+WHISPER_GPU=vulkan mise run whisper  # Vulkan instead, for non-NVIDIA GPUs (slower)
 mise run model                    # Download the Whisper model (MODEL=large-v3 for others)
 ```
 
@@ -123,7 +124,7 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
 
 GPU host:
 ```sh
-sudo apt install nvidia-cuda-toolkit
+sudo apt install nvidia-cuda-toolkit                # or for Vulkan: sudo apt install libvulkan-dev glslc
 ```
 
 Raspberry Pi:
