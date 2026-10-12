@@ -5,6 +5,9 @@
 pico/build*/
 dist/
 
+# Debug captures (recordings), see transcribe-whisper/README.md
+captures/
+
 # Downloaded models
 speech-models/
 
