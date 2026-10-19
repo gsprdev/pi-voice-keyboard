@@ -6,7 +6,7 @@ pico/build*/
 dist/
 
 # Downloaded models
-speech-models/
+speech-models
 
 # Go
 *.o

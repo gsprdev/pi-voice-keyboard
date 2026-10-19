@@ -17,6 +17,7 @@ mise run model                    # Download the Whisper model (MODEL=large-v3 f
 
 whisper.cpp is a git submodule.
 `mise run whisper` runs `git submodule update --init` and the CMake configure automatically.
+Worktrunk (`.config/wt.toml`) seeds new worktrees by deep-copying the primary worktree's `whisper.cpp` (build included, with paths rewritten), cloning `pico/pico-sdk` and its nested submodules locally from the primary's copies, and symlinking its `speech-models`.
 
 ### Transcription Service
 ```sh

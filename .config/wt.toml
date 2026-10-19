@@ -1,0 +1,27 @@
+# New worktrees reuse the primary's whisper.cpp (submodule + CUDA build), pico-sdk and models.
+[pre-start]
+whisper = """
+[ -e whisper.cpp/.git ] || {
+  rmdir whisper.cpp 2>/dev/null
+  cp -a --reflink=auto {{ primary_worktree_path }}/whisper.cpp whisper.cpp &&
+  # Keep mtimes, or make sees every generated file as newer than the objects and rebuilds all
+  grep -rIl --null {{ primary_worktree_path }} whisper.cpp/build | xargs -0 -r -n1 sh -c '
+    sed -i.bak "s|{{ primary_worktree_path }}|{{ worktree_path }}|g" "$1" && touch -r "$1.bak" "$1" && rm "$1.bak"' _
+}
+"""
+pico-sdk = """
+# A worktree's submodule gitdirs are separate, so clone locally from the primary's instead of GitHub.
+# -c keeps the temporary URLs out of the shared .git/config; sync then restores the upstream origins.
+m={{ primary_worktree_path }}/.git/modules/pico/pico-sdk
+# Older branches predate pico/
+if git ls-files -s pico/pico-sdk | grep -q ^160000 && ! [ -e pico/pico-sdk/.git ]; then
+  git -c protocol.file.allow=always -c submodule.pico/pico-sdk.url=$m submodule update --init pico/pico-sdk &&
+  git -C pico/pico-sdk -c protocol.file.allow=always \
+    -c submodule.lib/tinyusb.url=$m/modules/lib/tinyusb \
+    -c submodule.lib/cyw43-driver.url=$m/modules/lib/cyw43-driver \
+    -c submodule.lib/lwip.url=$m/modules/lib/lwip \
+    submodule update --init lib/tinyusb lib/cyw43-driver lib/lwip &&
+  git submodule sync --recursive pico/pico-sdk >/dev/null
+fi
+"""
+models = "[ -e speech-models ] || ln -s {{ primary_worktree_path }}/speech-models speech-models"
