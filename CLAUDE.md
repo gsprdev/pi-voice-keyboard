@@ -29,7 +29,8 @@ mise run test                     # Run Go tests
 
 The service is a Go module (Go 1.25+) using CGO to link against whisper.cpp.
 `mise run build` installs the whisper.cpp libraries into `dist/lib` and builds `dist/transcribe-whisper` with an `$ORIGIN/lib` rpath.
-`dist/` is self-contained, so the systemd unit runs `dist/transcribe-whisper` directly, without mise or the submodule.
+`dist/` is self-contained, so the systemd unit runs `dist/transcribe-whisper serve` directly, without mise or the submodule.
+The binary takes a subcommand: `serve` runs the service, the others work with the corpus, and no arguments prints usage.
 `mise.toml` sets `CGO_CFLAGS`, `CGO_LDFLAGS`, and `LD_LIBRARY_PATH` (for `go test`).
 
 ### Keyboard (Raspberry Pi)
@@ -62,7 +63,7 @@ cd transcribe-whisper
 ./test-client.sh                  # Records 5s audio with arecord, posts to /transcribe
 ```
 
-`transcribe-whisper/clean_test.go` covers transcription cleanup.
+`transcribe-whisper/clean_test.go` covers transcription cleanup, and `corpus_test.go` covers the corpus (storage, eviction, scoring, playback normalization).
 Run it with `mise run test`.
 There is no linting configured.
 
@@ -71,7 +72,11 @@ There is no linting configured.
 Service configuration (GPU host):
 - `PORT` - HTTP port (default: 8080)
 - `MODEL` - Upstream Whisper model name, loaded from `speech-models/ggml-<MODEL>.bin` relative to the working directory (default: `medium.en`)
-- `MODEL_LANGUAGE` - Transcription language (default: `en`)
+- `MODEL_LANGUAGE` - Transcription language for multilingual models (default: `en`)
+- `CORPUS_DB` - Record every request (audio, transcripts, and the build, host, device, model, params and conditions behind them) into this SQLite corpus for evaluation and replay; unset or empty disables.
+  `mise.toml` defaults it to `$XDG_DATA_HOME/pi-voice-keyboard/corpus.db`, shared by all worktrees, so local runs record and the installed service does not.
+  See `transcribe-whisper/README.md`
+- `CORPUS_MAX_MB` - Corpus storage budget (default: 1024)
 
 Pico configuration is compiled in from `pico/src/secrets.h`: `WIFI_SSID`, `WIFI_PASSWORD`, `SERVICE_URLS` (comma-separated, priority order).
 
@@ -96,6 +101,7 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
    - `POST /transcribe` - Accepts 16kHz WAV (`Content-Type: audio/wav`), returns plain text
    - `GET /health` - Returns "OK" when ready
    - Loads Whisper model once at startup, reuses for all requests
+   - `corpus.go` - optional SQLite corpus of requests (`CORPUS_DB`); `cli.go` - subcommands to list, play, label, replay, and report on it
 
 2. **pi/** - Python services on Raspberry Pi Zero 2 W
    - `ptt.py` - Push-to-talk GPIO handler: records audio, sends to service, receives text

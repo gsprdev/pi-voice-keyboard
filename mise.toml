@@ -12,6 +12,9 @@ dist = "{{config_root}}/dist"
 CGO_CFLAGS = "-I{{vars.dist}}/include"
 CGO_LDFLAGS = "-L{{vars.dist}}/lib -lwhisper -lggml -lggml-base -lggml-cpu -Wl,-rpath-link,{{vars.dist}}/lib -Wl,-rpath,$$ORIGIN/lib -Wl,--disable-new-dtags"
 LD_LIBRARY_PATH = "{{vars.dist}}/lib:{{env.LD_LIBRARY_PATH | default(value='')}}"
+# Local runs record into the corpus; the installed service and dist/ copies are off unless set.
+# An existing value wins: point worktrees at one shared file, or set it empty to turn recording off.
+CORPUS_DB = "{{env.CORPUS_DB | default(value=env.XDG_DATA_HOME | default(value=env.HOME ~ '/.local/share') ~ '/pi-voice-keyboard/corpus.db')}}"
 
 [tasks."whisper:init"]
 description = "Check out the whisper.cpp submodule if it is empty"
@@ -48,9 +51,13 @@ outputs = ["{{vars.dist}}/lib/.staged"]  # install keeps source mtimes, so stamp
 description = "Build the transcription service into dist/"
 depends = ["stage"]
 dir = "{{config_root}}/transcribe-whisper"
-run = "go build -o {{vars.dist}}/transcribe-whisper"
-sources = ["*.go", "go.mod", "go.sum", "{{vars.dist}}/lib/.staged"]
-outputs = ["{{vars.dist}}/transcribe-whisper"]
+# build is recorded with every corpus run, so results from different worktrees can be told apart.
+# No sources/outputs: the stamp depends on git state, which they can't see, and Go's build cache keeps it quick.
+run = """
+go build -o {{vars.dist}}/transcribe-whisper \
+  -ldflags "-X 'main.build=$(git describe --always --dirty) whisper.cpp:$(git -C {{vars.whisper}} describe --tags --always --dirty)' \
+    -X main.backend={{vars.gpu | default(value='cuda')}} -X main.buildHost=$(hostname)"
+"""
 
 [tasks.model]
 description = "Download the Whisper model (override with MODEL=...)"
@@ -65,7 +72,7 @@ mkdir -p speech-models
 [tasks.run]
 description = "Run the transcription service (override with PORT=... MODEL=...)"
 depends = ["build", "model"]
-run = "{{vars.dist}}/transcribe-whisper"
+run = "{{vars.dist}}/transcribe-whisper serve"
 
 [tasks.test]
 description = "Run transcribe-whisper tests"
