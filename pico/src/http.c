@@ -46,6 +46,7 @@ typedef struct {
 
     uint8_t tx_ring[TX_RING_SIZE];
     uint32_t tx_head, tx_tail;
+    uint32_t tx_peak; // most body bytes buffered at once
 
     char resp[RESP_MAX + 1];
     size_t resp_len;
@@ -65,8 +66,16 @@ static void detach(http_conn_t *c) {
     }
 }
 
+static void log_peak(http_conn_t *c) {
+    printf("Upload buffer peak: %lu bytes (%lu%%)\n", (unsigned long)c->tx_peak,
+           (unsigned long)(c->tx_peak * 100ull / TX_RING_SIZE));
+}
+
 static void fail(http_conn_t *c, const char *why) {
     printf("HTTP %s:%u: %s\n", c->host, c->port, why);
+    if (c->step == STEP_STREAMING) {
+        log_peak(c);
+    }
     detach(c);
     c->step = STEP_FAILED;
 }
@@ -258,7 +267,7 @@ bool http_open(const char *host, uint16_t port, const char *path, const char *co
     c->response_timeout_ms = response_timeout_ms;
     c->header_sent = false;
     c->finishing = false;
-    c->tx_head = c->tx_tail = 0;
+    c->tx_head = c->tx_tail = c->tx_peak = 0;
     c->resp_len = 0;
     c->status_code = 0;
     c->body = "";
@@ -302,16 +311,23 @@ bool http_write(const void *data, size_t len) {
     for (size_t i = 0; i < len; i++) {
         c->tx_ring[c->tx_head++ % TX_RING_SIZE] = bytes[i];
     }
+    if (c->tx_head - c->tx_tail > c->tx_peak) {
+        c->tx_peak = c->tx_head - c->tx_tail;
+    }
     return true;
 }
 
 void http_finish(void) {
     http_conn_t *c = &conn;
     c->finishing = true;
+    log_peak(c);
 }
 
 void http_close(void) {
     http_conn_t *c = &conn;
+    if (c->step == STEP_STREAMING && !c->finishing) {
+        log_peak(c); // abandoned mid-upload
+    }
     detach(c);
     c->step = STEP_FREE;
 }
@@ -321,9 +337,17 @@ static bool can_queue(http_conn_t *c, size_t bytes) {
     return tcp_sndbuf(c->pcb) >= bytes && tcp_sndqueuelen(c->pcb) + 8 <= TCP_SND_QUEUELEN;
 }
 
-static bool queue(http_conn_t *c, const void *data, size_t len, bool more) {
-    if (tcp_write(c->pcb, data, len, TCP_WRITE_FLAG_COPY | (more ? TCP_WRITE_FLAG_MORE : 0)) != ERR_OK) {
-        fail(c, "send failed");
+// Queue one write. ERR_MEM leaves the pcb untouched and is transient (lwIP's
+// heap or segment pool is momentarily full), so the caller just retries.
+static bool queue(http_conn_t *c, const void *data, size_t len) {
+    err_t err = tcp_write(c->pcb, data, len, TCP_WRITE_FLAG_COPY);
+    if (err == ERR_MEM) {
+        return false;
+    }
+    if (err != ERR_OK) {
+        char why[32];
+        snprintf(why, sizeof(why), "send failed (%d)", err);
+        fail(c, why);
         return false;
     }
     return true;
@@ -343,22 +367,20 @@ static bool send_chunk(http_conn_t *c) {
     if (n > CHUNK_MAX) n = CHUNK_MAX;
     if (n > room - CHUNK_OVERHEAD) n = room - CHUNK_OVERHEAD;
 
-    char size_line[8];
-    int size_len = snprintf(size_line, sizeof(size_line), "%lX\r\n", (unsigned long)n);
-    if (!queue(c, size_line, size_len, true)) {
-        return false;
-    }
+    // Framed in one buffer so the chunk is queued whole or not at all
+    static char chunk[CHUNK_MAX + CHUNK_OVERHEAD];
+    size_t len = snprintf(chunk, sizeof(chunk), "%lX\r\n", (unsigned long)n);
 
     // The data may wrap around the end of the ring
     uint32_t start = c->tx_tail % TX_RING_SIZE;
     uint32_t first = TX_RING_SIZE - start < n ? TX_RING_SIZE - start : n;
-    if (!queue(c, &c->tx_ring[start], first, true)) {
-        return false;
-    }
-    if (first < n && !queue(c, c->tx_ring, n - first, true)) {
-        return false;
-    }
-    if (!queue(c, "\r\n", 2, false)) {
+    memcpy(chunk + len, &c->tx_ring[start], first);
+    memcpy(chunk + len + first, c->tx_ring, n - first);
+    len += n;
+    memcpy(chunk + len, "\r\n", 2);
+    len += 2;
+
+    if (!queue(c, chunk, len)) {
         return false;
     }
     c->tx_tail += n;
@@ -376,7 +398,7 @@ static void conn_task(http_conn_t *c) {
 
     case STEP_CONTINUE:
         if (!c->header_sent && can_queue(c, strlen(c->header))) {
-            if (!queue(c, c->header, strlen(c->header), false)) {
+            if (!queue(c, c->header, strlen(c->header))) {
                 break;
             }
             c->header_sent = true;
@@ -394,7 +416,7 @@ static void conn_task(http_conn_t *c) {
             break; // a send failed
         }
         if (c->finishing && c->tx_head == c->tx_tail) {
-            if (!can_queue(c, 5) || !queue(c, "0\r\n\r\n", 5, false)) {
+            if (!can_queue(c, 5) || !queue(c, "0\r\n\r\n", 5)) {
                 break;
             }
             c->step = STEP_AWAITING;
