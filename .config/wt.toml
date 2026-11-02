@@ -1,9 +1,11 @@
-# New worktrees reuse the primary's whisper.cpp (submodule + CUDA build), pico-sdk and models.
+# New worktrees reuse the primary's whisper.cpp (submodule and build), pico-sdk and models.
 [pre-start]
 whisper = """
 [ -e whisper.cpp/.git ] || {
   rmdir whisper.cpp 2>/dev/null
-  cp -a --reflink=auto {{ primary_worktree_path }}/whisper.cpp whisper.cpp &&
+  # --reflink is GNU-only; BSD cp (macOS) rejects it
+  r=; cp --version >/dev/null 2>&1 && r=--reflink=auto
+  cp -a $r {{ primary_worktree_path }}/whisper.cpp whisper.cpp &&
   # Keep mtimes, or make sees every generated file as newer than the objects and rebuilds all
   grep -rIl --null {{ primary_worktree_path }} whisper.cpp/build | xargs -0 -r -n1 sh -c '
     sed -i.bak "s|{{ primary_worktree_path }}|{{ worktree_path }}|g" "$1" && touch -r "$1.bak" "$1" && rm "$1.bak"' _

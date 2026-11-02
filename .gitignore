@@ -53,3 +53,6 @@ __pycache__/
 
 # Pico Wi-Fi credentials
 pico/src/secrets.h
+
+# Local mise overrides
+mise.local.toml

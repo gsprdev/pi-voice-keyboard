@@ -12,11 +12,13 @@ It enables hands-free typing by using a Raspberry Pi Zero 2 W as a USB HID keybo
 ### Whisper Library (required first)
 ```sh
 mise run whisper                  # Build whisper.cpp with CUDA support (incremental)
+WHISPER_GPU=vulkan mise run whisper  # Other backends: vulkan (non-NVIDIA GPUs), metal (default on macOS, untested), cpu
 mise run model                    # Download the Whisper model (MODEL=large-v3 for others)
 ```
 
 whisper.cpp is a git submodule.
 `mise run whisper` runs `git submodule update --init` and the CMake configure automatically.
+Changing `WHISPER_GPU` reconfigures and rebuilds; set it in `mise.local.toml` `[env]` to make it stick (it then wins over the command line).
 Worktrunk (`.config/wt.toml`) seeds new worktrees by deep-copying the primary worktree's `whisper.cpp` (build included, with paths rewritten), cloning `pico/pico-sdk` and its nested submodules locally from the primary's copies, and symlinking its `speech-models`.
 
 ### Transcription Service
@@ -130,7 +132,8 @@ Button press (GPIO) → arecord → 16kHz WAV → HTTP POST /transcribe
 
 GPU host:
 ```sh
-sudo apt install nvidia-cuda-toolkit
+sudo apt install nvidia-cuda-toolkit                # or for Vulkan: sudo apt install libvulkan-dev glslc pkg-config
+xcode-select --install                              # macOS (Metal, untested)
 ```
 
 Raspberry Pi:

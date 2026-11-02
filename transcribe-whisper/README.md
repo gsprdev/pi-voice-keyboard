@@ -55,20 +55,36 @@ These words are kept when they appear within real speech.
 
 ## Prerequisites
 
-- NVIDIA GPU with CUDA support
-- Ubuntu-based Linux (for the `nvidia-cuda-toolkit` multiverse package)
+- A GPU host, with `WHISPER_GPU` choosing the whisper.cpp backend:
+  - `cuda` (the default): an NVIDIA GPU
+  - `vulkan`: other GPUs, such as AMD or Intel
+  - `metal` (the default on macOS): Apple Silicon, untested
+  - `cpu`: no GPU, much slower
+- Ubuntu-based Linux for the packages below.
+  macOS is untested: the build has a path for it, but it has never been run there.
 
-Drivers through `nvidia-cuda-toolkit` Ubuntu multiverse package are the only ones tested by the other, but other distros can be *theoretically* be used, through alternative drivers directly from NVIDIA.
+For CUDA, drivers through `nvidia-cuda-toolkit` Ubuntu multiverse package are the only ones tested by the other, but other distros can be *theoretically* be used, through alternative drivers directly from NVIDIA.
 
 ## Installation
 
 On the GPU-bearing Linux host:
 
-1. `sudo apt install nvidia-cuda-toolkit`
+1. Install the backend's toolchain:
+   - `cuda`: `sudo apt install nvidia-cuda-toolkit`
+   - `vulkan`: `sudo apt install libvulkan-dev glslc pkg-config`
+   - `metal`: `xcode-select --install`
+   - `cpu`: nothing extra
 2. `mise run whisper`
 3. Download a Whisper model using `mise run model` (`MODEL=<name>` for others)
 4. Compile using `mise run build`
 5. Edit `./transcription.service` for your paths, then install as a systemd service
+
+For a backend other than the default, set it in `mise.local.toml` before step 2, so every task builds it, `mise run run` and `mise run test` included:
+
+```toml
+[env]
+WHISPER_GPU = "vulkan"
+```
 
 This sytem will need to exist on the same local network as the Pi-based keyboard.
 
@@ -142,7 +158,7 @@ It shows how many labeled samples each WER covers, so compare configurations ove
 Speed is the median inference time per clip length, since Whisper encodes a fixed window and a short clip costs nearly as much as a long one.
 It leaves out each process's first transcription, unless given `-first`.
 
-`mise run build` stamps the backend from `vars.gpu` (default `cuda`) and the build host into the binary, so runs from each worktree's build can be told apart.
+`mise run build` stamps the backend from `WHISPER_GPU` and the build host into the binary, so runs from each worktree's build can be told apart.
 SQLite handles several processes at once on a local disk, but not reliably over a network filesystem.
 Every build refuses a corpus from another schema version, and there is no migration: convert it by hand, or move it aside and start a new one.
 

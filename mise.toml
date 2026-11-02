@@ -7,11 +7,16 @@ whisper = "{{config_root}}/whisper.cpp"
 dist = "{{config_root}}/dist"
 
 [env]
+# whisper.cpp backend: cuda, vulkan, metal, or cpu.
+# In [env] rather than [vars], so mise.local.toml can set it; vars can't see [env].
+WHISPER_GPU = "{% if env.WHISPER_GPU %}{{ env.WHISPER_GPU }}{% elif os() == 'macos' %}metal{% else %}cuda{% endif %}"
 # Headers and libs both come from the staged dist/ copy.
-# --disable-new-dtags makes $ORIGIN/lib an RPATH, which also covers the libs' own dependencies.
+# Linux: --disable-new-dtags makes $ORIGIN/lib an RPATH, which also covers the libs' own dependencies.
+# macOS (untested): Apple's linker has neither flag, and @loader_path is its $ORIGIN.
+# The absolute rpath is for go test, whose binary sits in a temp dir; SIP strips DYLD_LIBRARY_PATH from tasks.
 CGO_CFLAGS = "-I{{vars.dist}}/include"
-CGO_LDFLAGS = "-L{{vars.dist}}/lib -lwhisper -lggml -lggml-base -lggml-cpu -Wl,-rpath-link,{{vars.dist}}/lib -Wl,-rpath,$$ORIGIN/lib -Wl,--disable-new-dtags"
-LD_LIBRARY_PATH = "{{vars.dist}}/lib:{{env.LD_LIBRARY_PATH | default(value='')}}"
+CGO_LDFLAGS = "-L{{vars.dist}}/lib -lwhisper -lggml -lggml-base -lggml-cpu {% if os() == 'macos' %}-Wl,-rpath,@loader_path/lib -Wl,-rpath,{{vars.dist}}/lib{% else %}-Wl,-rpath-link,{{vars.dist}}/lib -Wl,-rpath,$$ORIGIN/lib -Wl,--disable-new-dtags{% endif %}"
+LD_LIBRARY_PATH = "{{vars.dist}}/lib{% if env.LD_LIBRARY_PATH %}:{{env.LD_LIBRARY_PATH}}{% endif %}"
 # Local runs record into the corpus; the installed service and dist/ copies are off unless set.
 # An existing value wins: point worktrees at one shared file, or set it empty to turn recording off.
 CORPUS_DB = "{{env.CORPUS_DB | default(value=env.XDG_DATA_HOME | default(value=env.HOME ~ '/.local/share') ~ '/pi-voice-keyboard/corpus.db')}}"
@@ -22,28 +27,42 @@ description = "Check out the whisper.cpp submodule if it is empty"
 run = "[ -e {{vars.whisper}}/.git ] || git submodule update --init {{vars.whisper}}"
 
 [tasks."whisper:configure"]
-description = "Configure whisper.cpp with CUDA"
+description = "Configure whisper.cpp (WHISPER_GPU=cuda|vulkan|metal|cpu, default cuda, metal on macOS)"
 depends = ["whisper:init"]
 run = """
-command -v nvcc >/dev/null || { echo 'CUDA toolkit missing: sudo apt install nvidia-cuda-toolkit' >&2; exit 1; }
-cmake -S {{vars.whisper}} -B {{vars.whisper}}/build -DGGML_CUDA=1 \
+case {{env.WHISPER_GPU}} in
+  cuda) command -v nvcc >/dev/null || { echo 'CUDA toolkit missing: sudo apt install nvidia-cuda-toolkit' >&2; exit 1; }
+        gpu=-DGGML_CUDA=ON ;;
+  vulkan) command -v glslc >/dev/null && pkg-config --exists vulkan || { echo 'Vulkan SDK missing: sudo apt install libvulkan-dev glslc pkg-config' >&2; exit 1; }
+        gpu=-DGGML_VULKAN=ON ;;
+  # The embed option's default follows GGML_METAL, but only on first configure, so set it too
+  metal) gpu='-DGGML_METAL=ON -DGGML_METAL_EMBED_LIBRARY=ON' ;;
+  cpu) gpu= ;;
+  *) echo 'Unknown WHISPER_GPU={{env.WHISPER_GPU}} (cuda, vulkan, metal, or cpu)' >&2; exit 1 ;;
+esac
+# One stamp per backend, so switching WHISPER_GPU reconfigures.
+# Cleared first: a failed cmake has already rewritten the cache, so the old stamp would lie.
+rm -f {{vars.whisper}}/build/.configured*
+# All off, then the chosen one on (the last -D wins), so switching clears the CMake cache's old choice
+cmake -S {{vars.whisper}} -B {{vars.whisper}}/build -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF $gpu \
   -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF
-touch {{vars.whisper}}/build/.configured
+touch {{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}
 """
 sources = ["{{vars.whisper}}/CMakeLists.txt"]
-outputs = ["{{vars.whisper}}/build/.configured"]
+outputs = ["{{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}"]
 
 [tasks.whisper]
 description = "Build whisper.cpp (incremental)"
 depends = ["whisper:configure"]
-run = "cmake --build {{vars.whisper}}/build -j $(( $(nproc) < 6 ? $(nproc) : 6 )) --config Release && touch {{vars.whisper}}/build/.built"
-sources = ["{{vars.whisper}}/{include,src,ggml}/**/*"]
+run = "n=$(getconf _NPROCESSORS_ONLN); cmake --build {{vars.whisper}}/build -j $(( n < 6 ? n : 6 )) --config Release && touch {{vars.whisper}}/build/.built"
+sources = ["{{vars.whisper}}/{include,src,ggml}/**/*", "{{vars.whisper}}/build/.configured-*"]
 outputs = ["{{vars.whisper}}/build/.built"]
 
 [tasks.stage]
 description = "Install whisper.cpp libraries into dist/"
 depends = ["whisper"]
-run = "cmake --install {{vars.whisper}}/build --prefix {{vars.dist}} >/dev/null && touch {{vars.dist}}/lib/.staged"
+# Cleared first, since install never removes a previous backend's libraries
+run = "rm -rf {{vars.dist}}/lib {{vars.dist}}/include && cmake --install {{vars.whisper}}/build --prefix {{vars.dist}} >/dev/null && touch {{vars.dist}}/lib/.staged"
 sources = ["{{vars.whisper}}/build/.built"]
 outputs = ["{{vars.dist}}/lib/.staged"]  # install keeps source mtimes, so stamp it
 
@@ -56,7 +75,7 @@ dir = "{{config_root}}/transcribe-whisper"
 run = """
 go build -o {{vars.dist}}/transcribe-whisper \
   -ldflags "-X 'main.build=$(git describe --always --dirty) whisper.cpp:$(git -C {{vars.whisper}} describe --tags --always --dirty)' \
-    -X main.backend={{vars.gpu | default(value='cuda')}} -X main.buildHost=$(hostname)"
+    -X main.backend={{env.WHISPER_GPU}} -X main.buildHost=$(hostname)"
 """
 
 [tasks.model]
@@ -78,7 +97,7 @@ run = "{{vars.dist}}/transcribe-whisper serve"
 description = "Run transcribe-whisper tests"
 depends = ["stage"]
 dir = "{{config_root}}/transcribe-whisper"
-run = "go test ."
+run = "go test -count=1 ."  # the test cache can't see a backend switch in dist/lib
 
 [tasks."pico:build"]
 description = "Build Pico firmware (override with PICO_BOARD=pico2, MIC_TIMING=standard)"
