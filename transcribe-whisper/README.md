@@ -98,7 +98,8 @@ OpenVINO can also reach an Intel NPU, which Vulkan can't.
   The first load on a device compiles the encoder, which can take a while, and caches it next to the model.
 - `GPU` needs Intel's OpenCL runtime (`sudo apt install intel-opencl-icd`), and untested.
 - `NPU` needs Intel's NPU user-space driver, which Ubuntu doesn't package.
-  The build fetches it (`linux-npu-driver`'s Ubuntu 26.04 release) into `dist/lib` too, without its firmware package, so it runs on Ubuntu's kernel driver and firmware.
+  The build fetches it (`linux-npu-driver`'s build for this Ubuntu release) into `dist/lib` too, without its firmware package, so it runs on Ubuntu's kernel driver and firmware.
+  Intel only builds it for Ubuntu 24.04 and 26.04 on x86_64, so `WHISPER_OPENVINO` builds stop anywhere else.
   It also needs Ubuntu's Level Zero loader (`sudo apt install libze1`), and both need the `render` group
 - The encoder takes only the full 30 seconds, so a smaller `-audio-ctx` fails with it
 

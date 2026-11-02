@@ -11,10 +11,9 @@ openvino = "2026.4.1"
 # In the build, so it goes with the configure stamp that points CMake at it
 openvino_sdk = "{{vars.whisper}}/build/openvino-{{vars.openvino}}"
 # Intel's NPU user-space driver, which Ubuntu doesn't package; the kernel driver and firmware are Ubuntu's.
-# Its Ubuntu 26.04 build, staged into dist/lib rather than installed.
+# Staged into dist/lib rather than installed; whisper:configure picks the build for this Ubuntu release.
 npu_driver = "1.38.0"
 npu_driver_build = "20260910-34487311128"
-npu_driver_sha256 = "83685e6d92f4db1ca65e442846d487c7feb1335634b33994292ceb38f933bcc7"
 npu_driver_dir = "{{vars.whisper}}/build/npu-driver-{{vars.npu_driver}}"
 
 [env]
@@ -55,21 +54,30 @@ esac
 # The wheel has no Python 3.15 build, but its SDK doesn't depend on the Python version.
 ov=
 if [ -n "$WHISPER_OPENVINO" ]; then
+  # Checked first, before any download, since the NPU driver comes only in these builds
+  [ -r /etc/os-release ] && . /etc/os-release
+  case "${ID:-}${VERSION_ID:-} $(uname -m)" in
+    'ubuntu24.04 x86_64') rel=ubuntu2404 sum=1efcd4b60c22abee751d8f2705962cbcc2a569de45c7e0e670cf08afbfcdc1d2 ;;
+    'ubuntu26.04 x86_64') rel=ubuntu2604 sum=83685e6d92f4db1ca65e442846d487c7feb1335634b33994292ceb38f933bcc7 ;;
+    *) echo "WHISPER_OPENVINO needs Ubuntu 24.04 or 26.04 on x86_64, not ${PRETTY_NAME:-$(uname -s)} $(uname -m)" >&2; exit 1 ;;
+  esac
   if ! [ -d {{vars.openvino_sdk}} ]; then
     rm -rf {{vars.openvino_sdk}}.tmp  # an interrupted install, which uv would take as done
     uv pip install -q --no-deps --python-version 3.14 --target {{vars.openvino_sdk}}.tmp openvino=={{vars.openvino}}
     mv {{vars.openvino_sdk}}.tmp {{vars.openvino_sdk}}
   fi
-  if ! [ -d {{vars.npu_driver_dir}} ]; then
-    rm -rf {{vars.npu_driver_dir}}.tmp
+  # Refetched when the release differs, as on the first reconfigure after an upgrade
+  if [ "$(cat {{vars.npu_driver_dir}}/release 2>/dev/null)" != $rel ]; then
+    rm -rf {{vars.npu_driver_dir}} {{vars.npu_driver_dir}}.tmp
     mkdir {{vars.npu_driver_dir}}.tmp
     (cd {{vars.npu_driver_dir}}.tmp
-     curl -fsSL -o npu.tgz https://github.com/intel/linux-npu-driver/releases/download/v{{vars.npu_driver}}/linux-npu-driver-v{{vars.npu_driver}}.{{vars.npu_driver_build}}-ubuntu2604.tar.gz
-     echo '{{vars.npu_driver_sha256}}  npu.tgz' | sha256sum -c --quiet
+     curl -fsSL -o npu.tgz https://github.com/intel/linux-npu-driver/releases/download/v{{vars.npu_driver}}/linux-npu-driver-v{{vars.npu_driver}}.{{vars.npu_driver_build}}-$rel.tar.gz
+     echo "$sum  npu.tgz" | sha256sum -c --quiet
      tar xzf npu.tgz
      # Only the libraries: intel-fw-npu would replace Ubuntu's firmware and reload the kernel driver
      for d in intel-level-zero-npu_*.deb intel-driver-compiler-npu_*.deb; do dpkg-deb -x $d .; done
-     rm npu.tgz ./*.deb ./*.ddeb ./*.asc)
+     rm npu.tgz ./*.deb ./*.ddeb ./*.asc
+     echo $rel >release)
     mv {{vars.npu_driver_dir}}.tmp {{vars.npu_driver_dir}}
   fi
   ov="-DWHISPER_OPENVINO=ON -DOpenVINO_DIR={{vars.openvino_sdk}}/openvino/cmake"

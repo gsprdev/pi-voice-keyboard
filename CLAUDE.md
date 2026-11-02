@@ -14,7 +14,7 @@ It enables hands-free typing by using a Raspberry Pi Zero 2 W as a USB HID keybo
 mise run whisper                  # Build whisper.cpp with CUDA support (incremental)
 WHISPER_GPU=vulkan mise run whisper  # Other backends: vulkan (non-NVIDIA GPUs), metal (default on macOS, untested), cpu
 mise run model                    # Download the Whisper model (MODEL=large-v3 for others)
-WHISPER_OPENVINO=1 mise run model # Also convert the encoder for OpenVINO (Intel); with it set, every task builds it in
+WHISPER_OPENVINO=1 mise run model # Also convert the encoder for OpenVINO (Intel; Ubuntu 24.04/26.04 x86_64 only); with it set, every task builds it in
 ```
 
 whisper.cpp is a git submodule.
