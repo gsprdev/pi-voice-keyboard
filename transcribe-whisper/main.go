@@ -91,6 +91,15 @@ func language(m *whisper.Context, lang string) (string, error) {
 	return lang, nil
 }
 
+// audioCtx checks an audio_ctx setting for m.
+// whisper.cpp ignores the OpenVINO encoder's shape mismatch and transcribes nothing.
+func audioCtx(m *whisper.Context, n int) error {
+	if openvinoDevice() != "" && n != m.Whisper_n_audio_ctx() {
+		return fmt.Errorf("the OpenVINO encoder only takes the full %d", m.Whisper_n_audio_ctx())
+	}
+	return nil
+}
+
 // loadModel loads a Whisper model, recording how that went in the process.
 func loadModel(path string, proc *process) (*whisper.Context, error) {
 	info, err := os.Stat(path)
@@ -104,10 +113,15 @@ func loadModel(path string, proc *process) (*whisper.Context, error) {
 	log.Printf("Loading whisper model...")
 	startLoad := time.Now()
 	m := whisper.Whisper_init(path)
-	loadDuration := time.Since(startLoad)
 	if m == nil {
 		err = fmt.Errorf("failed to load model %s", path)
+	} else if device := openvinoDevice(); device != "" {
+		// Fails loudly, since whisper.cpp would quietly fall back to its own encoder
+		if err = initOpenVINO(m, device); err != nil {
+			m.Whisper_free()
+		}
 	}
+	loadDuration := time.Since(startLoad)
 	proc.loaded(loadDuration, err)
 	if err != nil {
 		return nil, err
@@ -274,6 +288,9 @@ func (r *run) transcribe(m *whisper.Context, samples []float32) error {
 		wp.SetInitialPrompt(p.Prompt)
 	}
 	if p.AudioCtx > 0 {
+		if err := audioCtx(m, p.AudioCtx); err != nil {
+			return fmt.Errorf("audio_ctx: %w", err)
+		}
 		wp.SetAudioCtx(p.AudioCtx)
 	}
 	r.Effective = effective{AudioCtx: cmp.Or(p.AudioCtx, m.Whisper_n_audio_ctx()), Threads: uint(wp.Threads())}

@@ -1,10 +1,15 @@
 [tools]
 go = "1.27.2"
 python = "3.15.0"  # pico/tools/capture.py
+uv = "0.12.9"  # OpenVINO's SDK and model conversion
 
 [vars]
 whisper = "{{config_root}}/whisper.cpp"
 dist = "{{config_root}}/dist"
+# OpenVINO's PyPI wheel carries its C++ SDK too, so the build and the model conversion share one version
+openvino = "2026.4.1"
+# In the build, so it goes with the configure stamp that points CMake at it
+openvino_sdk = "{{vars.whisper}}/build/openvino-{{vars.openvino}}"
 
 [env]
 # whisper.cpp backend: cuda, vulkan, metal, or cpu.
@@ -27,7 +32,7 @@ description = "Check out the whisper.cpp submodule if it is empty"
 run = "[ -e {{vars.whisper}}/.git ] || git submodule update --init {{vars.whisper}}"
 
 [tasks."whisper:configure"]
-description = "Configure whisper.cpp (WHISPER_GPU=cuda|vulkan|metal|cpu, default cuda, metal on macOS)"
+description = "Configure whisper.cpp (WHISPER_GPU=cuda|vulkan|metal|cpu, default cuda, metal on macOS; WHISPER_OPENVINO=1)"
 depends = ["whisper:init"]
 run = """
 case {{env.WHISPER_GPU}} in
@@ -40,16 +45,27 @@ case {{env.WHISPER_GPU}} in
   cpu) gpu= ;;
   *) echo 'Unknown WHISPER_GPU={{env.WHISPER_GPU}} (cuda, vulkan, metal, or cpu)' >&2; exit 1 ;;
 esac
-# One stamp per backend, so switching WHISPER_GPU reconfigures.
+# OpenVINO runs the encoder, on top of whichever backend runs the rest.
+# The wheel has no Python 3.15 build, but its SDK doesn't depend on the Python version.
+ov=
+if [ -n "$WHISPER_OPENVINO" ]; then
+  if ! [ -d {{vars.openvino_sdk}} ]; then
+    rm -rf {{vars.openvino_sdk}}.tmp  # an interrupted install, which uv would take as done
+    uv pip install -q --no-deps --python-version 3.14 --target {{vars.openvino_sdk}}.tmp openvino=={{vars.openvino}}
+    mv {{vars.openvino_sdk}}.tmp {{vars.openvino_sdk}}
+  fi
+  ov="-DWHISPER_OPENVINO=ON -DOpenVINO_DIR={{vars.openvino_sdk}}/openvino/cmake"
+fi
+# One stamp per backend, so switching WHISPER_GPU, WHISPER_OPENVINO or OpenVINO's version reconfigures.
 # Cleared first: a failed cmake has already rewritten the cache, so the old stamp would lie.
 rm -f {{vars.whisper}}/build/.configured*
 # All off, then the chosen one on (the last -D wins), so switching clears the CMake cache's old choice
-cmake -S {{vars.whisper}} -B {{vars.whisper}}/build -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF $gpu \
+cmake -S {{vars.whisper}} -B {{vars.whisper}}/build -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DWHISPER_OPENVINO=OFF $gpu $ov \
   -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF
-touch {{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}
+touch {{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}${WHISPER_OPENVINO:++openvino-{{vars.openvino}}}
 """
 sources = ["{{vars.whisper}}/CMakeLists.txt"]
-outputs = ["{{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}"]
+outputs = ["{{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}{% if env.WHISPER_OPENVINO %}+openvino-{{vars.openvino}}{% endif %}"]
 
 [tasks.whisper]
 description = "Build whisper.cpp (incremental)"
@@ -61,8 +77,17 @@ outputs = ["{{vars.whisper}}/build/.built"]
 [tasks.stage]
 description = "Install whisper.cpp libraries into dist/"
 depends = ["whisper"]
-# Cleared first, since install never removes a previous backend's libraries
-run = "rm -rf {{vars.dist}}/lib {{vars.dist}}/include && cmake --install {{vars.whisper}}/build --prefix {{vars.dist}} >/dev/null && touch {{vars.dist}}/lib/.staged"
+# Cleared first, since install never removes a previous backend's libraries.
+# OpenVINO's runtime, IR reader and device plugins go along, so dist/ stays self-contained.
+run = """
+rm -rf {{vars.dist}}/lib {{vars.dist}}/include
+cmake --install {{vars.whisper}}/build --prefix {{vars.dist}} >/dev/null
+if [ -n "$WHISPER_OPENVINO" ]; then
+  cd {{vars.openvino_sdk}}/openvino/libs
+  cp -a libopenvino.so.* libopenvino_ir_frontend.so.* *_plugin.so libtbb*.so.* libhwloc.so.* cache.json {{vars.dist}}/lib/
+fi
+touch {{vars.dist}}/lib/.staged
+"""
 sources = ["{{vars.whisper}}/build/.built"]
 outputs = ["{{vars.dist}}/lib/.staged"]  # install keeps source mtimes, so stamp it
 
@@ -75,17 +100,21 @@ dir = "{{config_root}}/transcribe-whisper"
 run = """
 go build -o {{vars.dist}}/transcribe-whisper \
   -ldflags "-X 'main.build=$(git describe --always --dirty) whisper.cpp:$(git -C {{vars.whisper}} describe --tags --always --dirty)' \
-    -X main.backend={{env.WHISPER_GPU}} -X main.buildHost=$(hostname)"
+    -X main.backend={{env.WHISPER_GPU}}${WHISPER_OPENVINO:++openvino} -X main.buildHost=$(hostname)"
 """
 
 [tasks.model]
-description = "Download the Whisper model (override with MODEL=...)"
+description = "Download the Whisper model, and convert its encoder with WHISPER_OPENVINO (override with MODEL=...)"
 depends = ["whisper:init"]
-# The upstream script skips existing files, so remove a failed partial download
+# The upstream script skips existing files, so remove a failed partial download or conversion
 run = """
 model=${MODEL:-medium.en}  # same default as main.go
 mkdir -p speech-models
 {{vars.whisper}}/models/download-ggml-model.sh $model speech-models || { rm -f speech-models/ggml-$model.bin; exit 1; }
+ov=speech-models/ggml-$model-encoder-openvino
+if [ -n "$WHISPER_OPENVINO" ] && ! [ -e $ov.xml ]; then
+  uv run --with openvino=={{vars.openvino}} transcribe-whisper/openvino-encoder.py $model speech-models || { rm -f $ov.xml $ov.bin; exit 1; }
+fi
 """
 
 [tasks.run]

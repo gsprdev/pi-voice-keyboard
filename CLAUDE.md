@@ -14,6 +14,7 @@ It enables hands-free typing by using a Raspberry Pi Zero 2 W as a USB HID keybo
 mise run whisper                  # Build whisper.cpp with CUDA support (incremental)
 WHISPER_GPU=vulkan mise run whisper  # Other backends: vulkan (non-NVIDIA GPUs), metal (default on macOS, untested), cpu
 mise run model                    # Download the Whisper model (MODEL=large-v3 for others)
+WHISPER_OPENVINO=1 mise run model # Also convert the encoder for OpenVINO (Intel); with it set, every task builds it in
 ```
 
 whisper.cpp is a git submodule.
@@ -75,6 +76,7 @@ Service configuration (GPU host):
 - `PORT` - HTTP port (default: 8080)
 - `MODEL` - Upstream Whisper model name, loaded from `speech-models/ggml-<MODEL>.bin` relative to the working directory (default: `medium.en`)
 - `MODEL_LANGUAGE` - Transcription language for multilingual models (default: `en`)
+- `OPENVINO_DEVICE` - With a `WHISPER_OPENVINO` build, the encoder's OpenVINO device: `CPU`, `GPU` or `NPU` (default: `CPU`)
 - `CORPUS_DB` - Record every request (audio, transcripts, and the build, host, device, model, params and conditions behind them) into this SQLite corpus for evaluation and replay; unset or empty disables.
   `mise.toml` defaults it to `$XDG_DATA_HOME/pi-voice-keyboard/corpus.db`, shared by all worktrees, so local runs record and the installed service does not.
   See `transcribe-whisper/README.md`

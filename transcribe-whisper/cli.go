@@ -565,6 +565,11 @@ func cmdReplay(args []string) error {
 	if p.Language, err = language(m, p.Language); err != nil {
 		return fmt.Errorf("-language: %w", err)
 	}
+	if p.AudioCtx > 0 {
+		if err := audioCtx(m, p.AudioCtx); err != nil {
+			return fmt.Errorf("-audio-ctx: %w", err)
+		}
+	}
 
 	var errs, words, scored int
 	for _, id := range ids {

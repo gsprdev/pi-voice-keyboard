@@ -86,6 +86,20 @@ For a backend other than the default, set it in `mise.local.toml` before step 2,
 WHISPER_GPU = "vulkan"
 ```
 
+### OpenVINO
+
+On Intel hardware, `WHISPER_OPENVINO=1` also runs Whisper's encoder through OpenVINO, on top of whichever backend runs the rest.
+The encoder processes a fixed 30-second window however short the clip, so it is most of the work for push-to-talk.
+OpenVINO can also reach an Intel NPU, which Vulkan can't.
+
+- The build fetches OpenVINO's SDK from its PyPI wheel, and `dist/lib` carries the libraries it needs, so nothing is installed system-wide
+- `mise run model` also converts the model's encoder to `speech-models/ggml-<model>-encoder-openvino.xml`, in a Python environment with CPU-only PyTorch (about 2 GB, cached by uv)
+- `OPENVINO_DEVICE` picks the encoder's device at run time: `CPU` (the default), `GPU` or `NPU`.
+  The first load on a device compiles the encoder, which can take a while, and caches it next to the model.
+- `GPU` needs Intel's OpenCL runtime (`sudo apt install intel-opencl-icd`), and `NPU` needs Intel's NPU driver (`linux-npu-driver`).
+  Both are untested; only `CPU` has been run, on an AMD CPU
+- The encoder takes only the full 30 seconds, so a smaller `-audio-ctx` fails with it
+
 This sytem will need to exist on the same local network as the Pi-based keyboard.
 
 ## Corpus
@@ -158,7 +172,7 @@ It shows how many labeled samples each WER covers, so compare configurations ove
 Speed is the median inference time per clip length, since Whisper encodes a fixed window and a short clip costs nearly as much as a long one.
 It leaves out each process's first transcription, unless given `-first`.
 
-`mise run build` stamps the backend from `WHISPER_GPU` and the build host into the binary, so runs from each worktree's build can be told apart.
+`mise run build` stamps the backend from `WHISPER_GPU` and `WHISPER_OPENVINO` (as, for example, `vulkan+openvino`) and the build host into the binary, so runs from each worktree's build can be told apart.
 SQLite handles several processes at once on a local disk, but not reliably over a network filesystem.
 Every build refuses a corpus from another schema version, and there is no migration: convert it by hand, or move it aside and start a new one.
 

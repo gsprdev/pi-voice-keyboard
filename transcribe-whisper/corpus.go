@@ -70,10 +70,10 @@ CREATE TABLE process (
 	started_at   TEXT NOT NULL,
 	kind         TEXT NOT NULL,         -- serve or replay
 	build        TEXT NOT NULL,         -- git describe of this repo and whisper.cpp, Go binding and Go versions
-	backend      TEXT NOT NULL,         -- what whisper.cpp was built for: cuda, vulkan, metal, cpu
+	backend      TEXT NOT NULL,         -- what whisper.cpp was built for: cuda, vulkan, metal, cpu, +openvino
 	build_host   TEXT NOT NULL,         -- GGML_NATIVE tunes the build for this machine's CPU
 	host         TEXT NOT NULL,         -- JSON hostInfo, with device memory before and after loading
-	device       TEXT NOT NULL,         -- the device whisper runs on
+	device       TEXT NOT NULL,         -- the device whisper runs on, and OpenVINO's for the encoder
 	system_info  TEXT,                  -- whisper's
 	model        TEXT NOT NULL,
 	model_sha256 TEXT,
@@ -104,7 +104,7 @@ CREATE INDEX run_sample ON run (sample_id);
 // Set by `mise run build` with -ldflags.
 var (
 	build     = "unknown" // git describe of this repo and whisper.cpp
-	backend   = "unknown" // WHISPER_GPU, what whisper.cpp was built for
+	backend   = "unknown" // WHISPER_GPU, what whisper.cpp was built for, with +openvino for WHISPER_OPENVINO
 	buildHost = "unknown"
 )
 
@@ -197,9 +197,13 @@ func (c *corpus) startProcess(kind, modelName string) *process {
 	p := &process{c: c, model: modelName}
 	p.host, usedDevice = readHostInfo()
 	host, _ := json.Marshal(p.host)
+	dev := deviceName(usedDevice)
+	if ov := openvinoDevice(); ov != "" {
+		dev += ", encoder on OpenVINO " + ov
+	}
 	res, err := c.db.Exec(`INSERT INTO process (started_at, kind, build, backend, build_host, host, device, system_info,
 		model, load_error) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'loading')`,
-		now(), kind, buildString(), backend, buildHost, string(host), deviceName(usedDevice),
+		now(), kind, buildString(), backend, buildHost, string(host), dev,
 		whisper.Whisper_print_system_info(), modelName)
 	if err != nil {
 		log.Fatalf("Corpus: %v", err)
