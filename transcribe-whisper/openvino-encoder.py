@@ -29,7 +29,8 @@ name, out = sys.argv[1:]
 with tempfile.TemporaryDirectory() as checkpoints:
     model = whisper.load_model(name, device="cpu", download_root=checkpoints)
 mel = torch.zeros((1, model.dims.n_mels, 3000))  # Whisper's fixed 30s window
-encoder = ov.convert_model(model.encoder.eval(), example_input=mel)
+# A fixed shape, since the NPU compiles only those; the example input alone leaves the shape open
+encoder = ov.convert_model(model.encoder.eval(), example_input=mel, input=[mel.shape])
 # Full precision, like upstream's; each device plugin picks its own inference precision
 # Written under temporary names, the .xml last, since mise run model skips the conversion once it exists
 final = f"{out}/ggml-{name}-encoder-openvino"
