@@ -96,8 +96,10 @@ OpenVINO can also reach an Intel NPU, which Vulkan can't.
 - `mise run model` also converts the model's encoder to `speech-models/ggml-<model>-encoder-openvino.xml`, in a Python environment with CPU-only PyTorch (about 2 GB, cached by uv)
 - `OPENVINO_DEVICE` picks the encoder's device at run time: `CPU` (the default), `GPU` or `NPU`.
   The first load on a device compiles the encoder, which can take a while, and caches it next to the model.
-- `GPU` needs Intel's OpenCL runtime (`sudo apt install intel-opencl-icd`), and `NPU` needs Intel's NPU driver (`linux-npu-driver`).
-  Both are untested; only `CPU` has been run, on an AMD CPU
+- `GPU` needs Intel's OpenCL runtime (`sudo apt install intel-opencl-icd`), and untested.
+- `NPU` needs Intel's NPU user-space driver, which Ubuntu doesn't package.
+  The build fetches it (`linux-npu-driver`'s Ubuntu 26.04 release) into `dist/lib` too, without its firmware package, so it runs on Ubuntu's kernel driver and firmware.
+  It also needs Ubuntu's Level Zero loader (`sudo apt install libze1`), and both need the `render` group
 - The encoder takes only the full 30 seconds, so a smaller `-audio-ctx` fails with it
 
 This sytem will need to exist on the same local network as the Pi-based keyboard.

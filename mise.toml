@@ -10,6 +10,12 @@ dist = "{{config_root}}/dist"
 openvino = "2026.4.1"
 # In the build, so it goes with the configure stamp that points CMake at it
 openvino_sdk = "{{vars.whisper}}/build/openvino-{{vars.openvino}}"
+# Intel's NPU user-space driver, which Ubuntu doesn't package; the kernel driver and firmware are Ubuntu's.
+# Its Ubuntu 26.04 build, staged into dist/lib rather than installed.
+npu_driver = "1.38.0"
+npu_driver_build = "20260910-34487311128"
+npu_driver_sha256 = "83685e6d92f4db1ca65e442846d487c7feb1335634b33994292ceb38f933bcc7"
+npu_driver_dir = "{{vars.whisper}}/build/npu-driver-{{vars.npu_driver}}"
 
 [env]
 # whisper.cpp backend: cuda, vulkan, metal, or cpu.
@@ -54,18 +60,30 @@ if [ -n "$WHISPER_OPENVINO" ]; then
     uv pip install -q --no-deps --python-version 3.14 --target {{vars.openvino_sdk}}.tmp openvino=={{vars.openvino}}
     mv {{vars.openvino_sdk}}.tmp {{vars.openvino_sdk}}
   fi
+  if ! [ -d {{vars.npu_driver_dir}} ]; then
+    rm -rf {{vars.npu_driver_dir}}.tmp
+    mkdir {{vars.npu_driver_dir}}.tmp
+    (cd {{vars.npu_driver_dir}}.tmp
+     curl -fsSL -o npu.tgz https://github.com/intel/linux-npu-driver/releases/download/v{{vars.npu_driver}}/linux-npu-driver-v{{vars.npu_driver}}.{{vars.npu_driver_build}}-ubuntu2604.tar.gz
+     echo '{{vars.npu_driver_sha256}}  npu.tgz' | sha256sum -c --quiet
+     tar xzf npu.tgz
+     # Only the libraries: intel-fw-npu would replace Ubuntu's firmware and reload the kernel driver
+     for d in intel-level-zero-npu_*.deb intel-driver-compiler-npu_*.deb; do dpkg-deb -x $d .; done
+     rm npu.tgz ./*.deb ./*.ddeb ./*.asc)
+    mv {{vars.npu_driver_dir}}.tmp {{vars.npu_driver_dir}}
+  fi
   ov="-DWHISPER_OPENVINO=ON -DOpenVINO_DIR={{vars.openvino_sdk}}/openvino/cmake"
 fi
-# One stamp per backend, so switching WHISPER_GPU, WHISPER_OPENVINO or OpenVINO's version reconfigures.
+# One stamp per backend, so switching WHISPER_GPU, WHISPER_OPENVINO or OpenVINO's or the NPU driver's version reconfigures.
 # Cleared first: a failed cmake has already rewritten the cache, so the old stamp would lie.
 rm -f {{vars.whisper}}/build/.configured*
 # All off, then the chosen one on (the last -D wins), so switching clears the CMake cache's old choice
 cmake -S {{vars.whisper}} -B {{vars.whisper}}/build -DGGML_CUDA=OFF -DGGML_VULKAN=OFF -DGGML_METAL=OFF -DWHISPER_OPENVINO=OFF $gpu $ov \
   -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_SERVER=OFF
-touch {{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}${WHISPER_OPENVINO:++openvino-{{vars.openvino}}}
+touch {{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}${WHISPER_OPENVINO:++openvino-{{vars.openvino}}-npu-{{vars.npu_driver}}}
 """
 sources = ["{{vars.whisper}}/CMakeLists.txt"]
-outputs = ["{{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}{% if env.WHISPER_OPENVINO %}+openvino-{{vars.openvino}}{% endif %}"]
+outputs = ["{{vars.whisper}}/build/.configured-{{env.WHISPER_GPU}}{% if env.WHISPER_OPENVINO %}+openvino-{{vars.openvino}}-npu-{{vars.npu_driver}}{% endif %}"]
 
 [tasks.whisper]
 description = "Build whisper.cpp (incremental)"
@@ -78,13 +96,15 @@ outputs = ["{{vars.whisper}}/build/.built"]
 description = "Install whisper.cpp libraries into dist/"
 depends = ["whisper"]
 # Cleared first, since install never removes a previous backend's libraries.
-# OpenVINO's runtime, IR reader and device plugins go along, so dist/ stays self-contained.
+# OpenVINO's runtime, IR reader, device plugins and the NPU driver go along, so dist/ stays self-contained.
+# The NPU driver is found through the binary's RPATH, by Ubuntu's Level Zero loader (libze1).
 run = """
 rm -rf {{vars.dist}}/lib {{vars.dist}}/include
 cmake --install {{vars.whisper}}/build --prefix {{vars.dist}} >/dev/null
 if [ -n "$WHISPER_OPENVINO" ]; then
   cd {{vars.openvino_sdk}}/openvino/libs
   cp -a libopenvino.so.* libopenvino_ir_frontend.so.* *_plugin.so libtbb*.so.* libhwloc.so.* cache.json {{vars.dist}}/lib/
+  cp -a {{vars.npu_driver_dir}}/usr/lib/x86_64-linux-gnu/*.so* {{vars.dist}}/lib/
 fi
 touch {{vars.dist}}/lib/.staged
 """
