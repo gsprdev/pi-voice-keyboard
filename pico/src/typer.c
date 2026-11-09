@@ -7,9 +7,10 @@
 #include "tusb.h"
 #include "typer.h"
 
-// Matches the 10ms press and 10ms release delays in type-ascii.py
-#define KEY_HOLD_US 10000
-#define KEY_GAP_US  10000
+// Defaults match the 2ms press and 2ms release delays in type-ascii.py:
+// 1ms each typed cleanly into a terminal and Kate (tools/typing-test.py).
+// Adjustable from the console to find the fastest rate hosts accept.
+static uint32_t hold_us = 2000, gap_us = 2000;
 
 #define QUEUE_SIZE 4096 // power of two
 
@@ -40,6 +41,12 @@ static bool lookup(char ch, uint8_t *mod, uint8_t *keycode) {
     return true;
 }
 
+void typer_set_delays(uint32_t hold, uint32_t gap) {
+    hold_us = hold;
+    gap_us = gap;
+    printf("Typing delays: hold %luus, gap %luus\n", (unsigned long)hold, (unsigned long)gap);
+}
+
 bool typer_busy(void) {
     return head != tail || state != IDLE;
 }
@@ -60,7 +67,7 @@ void typer_task(void) {
             }
             tud_hid_keyboard_report(0, mod, keycode);
             state = PRESSED;
-            next_at = make_timeout_time_us(KEY_HOLD_US);
+            next_at = make_timeout_time_us(hold_us);
             break;
         }
         break;
@@ -69,7 +76,7 @@ void typer_task(void) {
         if (time_reached(next_at) && tud_hid_ready()) {
             tud_hid_keyboard_report(0, 0, NULL); // key up
             state = RELEASED;
-            next_at = make_timeout_time_us(KEY_GAP_US);
+            next_at = make_timeout_time_us(gap_us);
         }
         break;
 

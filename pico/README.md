@@ -120,6 +120,18 @@ sleep 3; printf 'Hello, world!\n' > /dev/ttyACM0
 Supported characters match `pi/type-ascii.py`: printable ASCII, tab, newline, and backspace.
 Anything else is skipped and logged.
 
+Each key is held for 2ms with a 2ms gap after release.
+To find how fast a host accepts keys, `tools/typing-test.py` sweeps those delays and checks what arrives:
+
+```sh
+tools/typing-test.py                     # Typed back into this terminal and checked
+tools/typing-test.py 3/3 2/2 2/1 -n 20   # Chosen HOLD/GAP steps in ms, 20 lines each
+tools/typing-test.py --blind 5/5 2/2     # Type into another app; compare by eye
+```
+
+It sets the delays with a console line starting with `^A`, `\x01<hold_us> <gap_us>\n`, and restores 2/2 at the end.
+Delays set this way last until the Pico restarts.
+
 ### Stage 2: microphone
 
 Record from the audio port, then listen to the result:

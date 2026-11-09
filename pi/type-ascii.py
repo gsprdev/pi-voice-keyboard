@@ -197,10 +197,10 @@ def send_char(fd, ch):
     # Send the key
     fd.write(report(mod, kc))
     fd.flush()
-    time.sleep(0.01)
+    time.sleep(0.002)
     fd.write(report(0, KEY_NONE))  # key up
     fd.flush()
-    time.sleep(0.01)
+    time.sleep(0.002)
 
 def main():
     if len(sys.argv) != 2:
