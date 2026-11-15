@@ -17,4 +17,8 @@
 #define LED_PROCESSING_PIN 17
 #define BUZZER_PIN         18
 
+// Typing speed potentiometer (TYPING_KNOB builds): wiper on an ADC input.
+// GPIO 28 sits between AGND and ADC_VREF, and is clear of the I2C pins.
+#define SPEED_KNOB_PIN 28
+
 #endif

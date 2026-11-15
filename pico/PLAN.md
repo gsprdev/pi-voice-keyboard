@@ -82,8 +82,9 @@ PIO side-set requires SCK and WS to be consecutive.
 | Recording LED | 16 | 21 |
 | Processing LED | 17 | 22 |
 | Buzzer | 18 | 24 |
+| Speed knob wiper (`TYPING_KNOB`) | 28 (ADC2) | 34 |
 
-Mic power: 3V3 (pin 36) and GND.
+Mic power: 3V3 (pin 36) and GND. Speed knob ends: AGND (pin 33) and ADC_VREF (pin 35).
 
 ## Stages
 

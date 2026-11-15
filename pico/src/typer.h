@@ -2,14 +2,16 @@
 #define TYPER_H
 
 #include <stdbool.h>
-#include <stdint.h>
+
+// Set up the speed knob, when built with it
+void typer_init(void);
 
 // Queue one character to be typed. Returns false if the queue is full.
 bool typer_putc(char ch);
 
-// Key press duration and pause after release, in microseconds. Takes effect
-// immediately, including for text already queued.
-void typer_set_delays(uint32_t hold_us, uint32_t gap_us);
+// Room for another character. Console input is read only while this holds,
+// so a full queue backs up into USB flow control instead of dropping text.
+bool typer_has_room(void);
 
 // Text queued or a key still being pressed
 bool typer_busy(void);

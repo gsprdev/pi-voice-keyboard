@@ -49,6 +49,8 @@ cp pico/src/secrets.h.example pico/src/secrets.h   # Wi-Fi + service URLs (git-i
 mise run pico:build               # Build firmware: pico/build/voice-keyboard.uf2
 PICO_BOARD=pico2 mise run pico:build      # Plain Pico 2 (no Wi-Fi, USB networking only): pico/build-pico2/
 MIC_TIMING=standard mise run pico:build   # Standard I2S mic instead of SPH0645
+TYPING_KNOB=on mise run pico:build        # Typing speed potentiometer on GPIO 28 (default: fixed 10ms)
+# also TYPING_SLOW_MS=500 TYPING_FAST_MS=0.5 TYPING_STEPS=32 set the knob range
 mise run pico:flash               # Build, reboot into BOOTSEL, copy to the RP2350 drive
 mise run pico:tail                # Follow the console log
 mise run pico:capture             # Record from the audio serial port and transcribe (stage 2 mic check)

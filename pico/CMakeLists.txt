@@ -18,6 +18,13 @@ pico_sdk_init()
 set(MIC_TIMING sph0645 CACHE STRING "Microphone I2S timing: standard or sph0645")
 set_property(CACHE MIC_TIMING PROPERTY STRINGS standard sph0645)
 
+# Typing speed potentiometer on GPIO 28; without it keys use a fixed 10ms delay
+option(TYPING_KNOB "Potentiometer on GPIO 28 sets the typing speed" OFF)
+# The knob's range (key hold and gap, in ms, fractions allowed) and number of steps (1-4096)
+set(TYPING_SLOW_MS 500 CACHE STRING "Typing delay with the knob at the slow end")
+set(TYPING_FAST_MS 0.5 CACHE STRING "Typing delay with the knob at the fast end")
+set(TYPING_STEPS 32 CACHE STRING "Number of knob steps")
+
 add_executable(voice-keyboard
     src/feedback.c
     src/http.c
@@ -38,6 +45,7 @@ target_include_directories(voice-keyboard PRIVATE src)
 
 target_link_libraries(voice-keyboard PRIVATE
     pico_stdlib
+    hardware_adc
     hardware_dma
     hardware_pio
     hardware_pwm
@@ -68,6 +76,10 @@ pico_enable_stdio_uart(voice-keyboard 0)
 target_compile_definitions(voice-keyboard PRIVATE
     PICO_STDIO_USB_ENABLE_RESET_VIA_BAUD_RATE=1
     MIC_SAMPLE_ON_FALLING_EDGE=$<STREQUAL:${MIC_TIMING},sph0645>
+    TYPING_KNOB=$<BOOL:${TYPING_KNOB}>
+    KNOB_SLOW_MS=${TYPING_SLOW_MS}
+    KNOB_FAST_MS=${TYPING_FAST_MS}
+    KNOB_STEPS=${TYPING_STEPS}
 )
 
 pico_add_extra_outputs(voice-keyboard)

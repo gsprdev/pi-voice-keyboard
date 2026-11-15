@@ -5,8 +5,7 @@
 // keyboard.
 //
 // Development aids on the USB serial ports: text written to the console is
-// typed directly (or sets the typing delays, see console_task), and the audio
-// port streams raw microphone PCM while open.
+// typed directly, and the audio port streams raw microphone PCM while open.
 
 #include <stdio.h>
 
@@ -75,34 +74,10 @@ static void console_task(void) {
     }
     was_connected = connected;
 
-    // A line starting with SOH (^A) is a command instead of text:
-    // "\x01<hold_us> <gap_us>\n" sets the typing delays (tools/typing-test.py)
-    static char cmd[32];
-    static int cmd_len = -1; // -1: not in a command
-
     int c;
-    while ((c = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
-        if (c == '\x01') {
-            cmd_len = 0;
-        } else if (cmd_len >= 0) {
-            if (c != '\n') {
-                if (cmd_len < (int)sizeof(cmd) - 1) {
-                    cmd[cmd_len++] = (char)c;
-                }
-                continue;
-            }
-            cmd[cmd_len] = '\0';
-            cmd_len = -1;
-            unsigned long hold, gap;
-            if (sscanf(cmd, "%lu %lu", &hold, &gap) == 2) {
-                typer_set_delays(hold, gap);
-            } else {
-                printf("Bad command: %s\n", cmd);
-            }
-        } else if (!typer_putc((char)c)) {
-            printf("Typing queue full, dropping input\n");
-            break;
-        }
+    // Unread input fills the CDC buffer, which NAKs the host's writes until there's room
+    while (typer_has_room() && (c = getchar_timeout_us(0)) != PICO_ERROR_TIMEOUT) {
+        typer_putc((char)c);
     }
 }
 
@@ -114,6 +89,7 @@ int main(void) {
     stdio_init_all();
     mic_init();
     feedback_init();
+    typer_init();
     ptt_init();
     service_init();
 

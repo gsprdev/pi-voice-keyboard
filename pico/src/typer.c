@@ -1,16 +1,26 @@
 // Types queued ASCII text as USB HID boot keyboard reports.
 // Port of pi/type-ascii.py, driven by the main loop instead of sleeping.
 
+#include <math.h>
 #include <stdio.h>
 
+#include "hardware/adc.h"
 #include "pico/time.h"
+#include "pins.h"
 #include "tusb.h"
 #include "typer.h"
 
-// Defaults match the 2ms press and 2ms release delays in type-ascii.py:
-// 1ms each typed cleanly into a terminal and Kate (tools/typing-test.py).
-// Adjustable from the console to find the fastest rate hosts accept.
-static uint32_t hold_us = 2000, gap_us = 2000;
+// Each key is held for the delay, then released for the delay. Without the
+// speed knob it's a fixed 10ms, safe for slow hosts and apps. The knob covers
+// KNOB_SLOW_MS down to KNOB_FAST_MS in KNOB_STEPS steps (build options),
+// logarithmic so the fast end has finer control; 1ms typed cleanly into a
+// terminal and Kate on Linux.
+#define FIXED_DELAY_US 10000
+#if TYPING_KNOB
+#define KNOB_STEP_RAW (4096 / KNOB_STEPS) // the ADC has 12 bits
+static uint32_t knob_delays_us[KNOB_STEPS];
+#endif
+static uint32_t delay_us;
 
 #define QUEUE_SIZE 4096 // power of two
 
@@ -22,8 +32,12 @@ static uint32_t head, tail;
 static enum { IDLE, PRESSED, RELEASED } state = IDLE;
 static absolute_time_t next_at;
 
+bool typer_has_room(void) {
+    return head - tail < QUEUE_SIZE;
+}
+
 bool typer_putc(char ch) {
-    if (head - tail == QUEUE_SIZE) {
+    if (!typer_has_room()) {
         return false;
     }
     queue[head++ % QUEUE_SIZE] = ch;
@@ -41,10 +55,36 @@ static bool lookup(char ch, uint8_t *mod, uint8_t *keycode) {
     return true;
 }
 
-void typer_set_delays(uint32_t hold, uint32_t gap) {
-    hold_us = hold;
-    gap_us = gap;
-    printf("Typing delays: hold %luus, gap %luus\n", (unsigned long)hold, (unsigned long)gap);
+void typer_init(void) {
+#if TYPING_KNOB
+    adc_init();
+    adc_gpio_init(SPEED_KNOB_PIN);
+    adc_select_input(SPEED_KNOB_PIN - 26); // ADC inputs 0-3 are GPIO 26-29
+    float slow = KNOB_SLOW_MS * 1000.0f, fast = KNOB_FAST_MS * 1000.0f;
+    for (int i = 0; i < KNOB_STEPS; i++) {
+        float t = KNOB_STEPS > 1 ? (float)i / (KNOB_STEPS - 1) : 0;
+        knob_delays_us[i] = (uint32_t)(slow * powf(fast / slow, t) + 0.5f);
+    }
+#endif
+}
+
+// Read per key, so turning the knob takes effect mid-sentence
+static uint32_t key_delay_us(void) {
+#if TYPING_KNOB
+    static int step = -1;
+    int raw = adc_read();
+    int slack = KNOB_STEP_RAW / 8; // hysteresis, so a knob between steps doesn't flicker
+    if (step < 0 || raw < step * KNOB_STEP_RAW - slack || raw >= (step + 1) * KNOB_STEP_RAW + slack) {
+        step = raw / KNOB_STEP_RAW;
+        if (step >= KNOB_STEPS) {
+            step = KNOB_STEPS - 1; // the remainder when STEPS doesn't divide 4096
+        }
+        printf("Typing delay: %uus\n", (unsigned)knob_delays_us[step]);
+    }
+    return knob_delays_us[step];
+#else
+    return FIXED_DELAY_US;
+#endif
 }
 
 bool typer_busy(void) {
@@ -67,7 +107,8 @@ void typer_task(void) {
             }
             tud_hid_keyboard_report(0, mod, keycode);
             state = PRESSED;
-            next_at = make_timeout_time_us(hold_us);
+            delay_us = key_delay_us();
+            next_at = make_timeout_time_us(delay_us);
             break;
         }
         break;
@@ -76,7 +117,7 @@ void typer_task(void) {
         if (time_reached(next_at) && tud_hid_ready()) {
             tud_hid_keyboard_report(0, 0, NULL); // key up
             state = RELEASED;
-            next_at = make_timeout_time_us(gap_us);
+            next_at = make_timeout_time_us(delay_us);
         }
         break;
 

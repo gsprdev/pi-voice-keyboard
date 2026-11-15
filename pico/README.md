@@ -37,6 +37,7 @@ sudo apt install cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-n
 mise run pico:build                     # Pico 2 W: build/voice-keyboard.uf2
 PICO_BOARD=pico2 mise run pico:build    # Plain Pico 2, USB networking only: build-pico2/voice-keyboard.uf2
 MIC_TIMING=standard mise run pico:build # Standard I2S mic (ICS-43434 etc.) instead of SPH0645
+TYPING_KNOB=on mise run pico:build      # Typing speed set by a potentiometer (see Wiring)
 ```
 
 pico-sdk is a git submodule.
@@ -91,6 +92,8 @@ See the pin table in [PLAN.md](PLAN.md#pins).
 - Button: GP14 to GND (internal pull-up)
 - Recording LED: GP16, processing LED: GP17 (each through a resistor to GND)
 - Buzzer (passive): GP18 to GND
+- Speed knob (`TYPING_KNOB=on` builds): a 10kΩ linear potentiometer with its wiper on GP28 (pin 34) and its ends on AGND (pin 33) and ADC_VREF (pin 35).
+  Toward ADC_VREF is faster; swap the ends to reverse it.
 
 ## Use
 
@@ -117,20 +120,17 @@ cat /dev/ttyACM0 &                # Watch logs
 sleep 3; printf 'Hello, world!\n' > /dev/ttyACM0
 ```
 
+Writes block while the typing queue is full, so large inputs are paced by USB flow control rather than dropped.
+To type a whole file, for example to exercise the speed knob, run `tools/type-file.sh FILE` (or pipe text into it); it converts UTF-8 text to what the keyboard can type.
+
 Supported characters match `pi/type-ascii.py`: printable ASCII, tab, newline, and backspace.
 Anything else is skipped and logged.
 
-Each key is held for 2ms with a 2ms gap after release.
-To find how fast a host accepts keys, `tools/typing-test.py` sweeps those delays and checks what arrives:
-
-```sh
-tools/typing-test.py                     # Typed back into this terminal and checked
-tools/typing-test.py 3/3 2/2 2/1 -n 20   # Chosen HOLD/GAP steps in ms, 20 lines each
-tools/typing-test.py --blind 5/5 2/2     # Type into another app; compare by eye
-```
-
-It sets the delays with a console line starting with `^A`, `\x01<hold_us> <gap_us>\n`, and restores 2/2 at the end.
-Delays set this way last until the Pico restarts.
+Each key is held for 10ms with a 10ms gap after release, slow enough for most hosts and apps.
+With the speed knob, the hold and gap range from 500ms down to 0.5ms in 32 steps by default, read before each key, so you can turn it while text is being typed.
+Change the range and steps at build time, e.g. `TYPING_KNOB=on TYPING_SLOW_MS=30 TYPING_FAST_MS=1 TYPING_STEPS=16 mise run pico:build`; the steps are spaced logarithmically.
+The console logs the delay whenever the knob moves to a new step.
+The knob exists because how fast keys can arrive varies with the host and the receiving app: turn it up until text starts to garble or drop characters, then back off a step or two.
 
 ### Stage 2: microphone
 
